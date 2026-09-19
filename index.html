@@ -143,7 +143,7 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
 .empty h3{font-size:16px;color:var(--ink);margin-bottom:5px}
 .empty p{font-size:13px;max-width:34ch;margin:0 auto}
 
-.overlay{position:fixed;inset:0;z-index:60;background:rgba(8,11,15,.72);overflow-y:auto}
+.overlay{position:absolute;inset:0;z-index:70;background:rgba(8,11,15,.94);overflow-y:auto;-webkit-overflow-scrolling:touch}
 .overlay[hidden]{display:none}
 .sheet{position:relative;background:var(--surface);width:100%;max-width:640px;margin:10vh auto 0;border-radius:22px;padding:20px 16px calc(28px + env(safe-area-inset-bottom,0px));box-shadow:0 10px 40px rgba(0,0,0,.4);animation:up .25s ease}
 .sheetclose{position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-size:22px;line-height:1;display:grid;place-items:center;z-index:3;padding:0}
@@ -542,7 +542,7 @@ function openDetail(code){var p=panels.find(function(x){return x.code===code;});
   $('detDel').addEventListener('click',async function(){if(!confirm('Видалити запис по цій панелі?'))return;var r=await sb.from('panels').delete().eq('id',p.id);if(r.error){toast('Помилка','warn');return;}closeSheet();toast('Видалено');loadPanels();});
 }
 function dl(k,v){return '<div class="detail-line"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';}
-function openSheet(html){var s=document.createElement('div');s.className='overlay';s.id='genOv';s.innerHTML='<div class="sheet"><button class="sheetclose" type="button" id="sheetCloseBtn">×</button><div class="grab"></div>'+html+'</div>';document.body.appendChild(s);s.addEventListener('click',function(e){if(e.target===s)closeSheet();});var cb=document.getElementById('sheetCloseBtn');if(cb)cb.addEventListener('click',closeSheet);}
+function openSheet(html){var s=document.createElement('div');s.className='overlay';s.id='genOv';s.innerHTML='<div class="sheet"><button class="sheetclose" type="button" id="sheetCloseBtn">×</button><div class="grab"></div>'+html+'</div>';(document.getElementById('app')||document.body).appendChild(s);s.addEventListener('click',function(e){if(e.target===s)closeSheet();});var cb=document.getElementById('sheetCloseBtn');if(cb)cb.addEventListener('click',closeSheet);}
 function closeSheet(){var s=$('genOv');if(s)s.remove();}
 
 /* ---------- STATS ---------- */
@@ -867,6 +867,7 @@ function subscribeRealtime(){
 
 /* ---------- BOOT ---------- */
 (function boot(){
+  try{var _ap=document.getElementById('app'),_so=document.getElementById('scanOv');if(_ap&&_so)_ap.appendChild(_so);}catch(e){}
   var cfg=window.APP_CONFIG||{};
   if(!cfg.SUPABASE_URL||cfg.SUPABASE_URL.indexOf('ВСТАВ')>=0||!cfg.SUPABASE_ANON_KEY||cfg.SUPABASE_ANON_KEY.indexOf('ВСТАВ')>=0){$('cfgErr').hidden=false;return;}
   if(typeof supabase==='undefined'){$('cfgErr').hidden=false;$('cfgErr').querySelector('p').textContent='Не завантажилась бібліотека Supabase. Перевір інтернет і онови сторінку.';return;}
