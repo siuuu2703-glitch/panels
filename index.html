@@ -48,7 +48,8 @@
 }
 *{box-sizing:border-box}
 html,body{height:100%;overflow-x:hidden}
-input[type="date"],input[type="month"]{min-width:0;max-width:100%;box-sizing:border-box}
+input[type="date"],input[type="month"]{-webkit-appearance:none;-moz-appearance:none;appearance:none;min-width:0;max-width:100%;width:100%;box-sizing:border-box;text-align:left}
+input[type="date"]::-webkit-date-and-time-value{text-align:left}
 .row2>*{min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"Manrope",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%;overscroll-behavior-y:none;overflow:hidden}
 img{max-width:100%}
@@ -60,7 +61,7 @@ input,select,textarea{font-family:inherit;font-size:16px}
 textarea.inp{font-weight:600;color:var(--ink)}
 h1,h2,h3{margin:0;text-wrap:balance}
 
-#app{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;overflow:hidden}
 header.top{flex:0 0 auto;z-index:30;background:var(--brand);color:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
 header.top .logo{width:30px;height:30px;border-radius:9px;flex:0 0 auto;background:linear-gradient(150deg,var(--accent),#c9761a);display:grid;place-items:center;color:#1b1206;font-weight:800;font-size:15px;box-shadow:0 2px 8px rgba(232,145,42,.4)}
 header.top .ttl{font-weight:800;font-size:16px;letter-spacing:-.01em;line-height:1.1}
@@ -142,9 +143,10 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
 .empty h3{font-size:16px;color:var(--ink);margin-bottom:5px}
 .empty p{font-size:13px;max-width:34ch;margin:0 auto}
 
-.overlay{position:fixed;inset:0;z-index:60;background:rgba(10,13,17,.55);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center}
+.overlay{position:fixed;inset:0;z-index:60;background:rgba(10,13,17,.55);backdrop-filter:blur(3px);overflow-y:auto;-webkit-overflow-scrolling:touch}
 .overlay[hidden]{display:none}
-.sheet{background:var(--surface);width:100%;max-width:640px;border-radius:22px 22px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 40px rgba(0,0,0,.35);max-height:92vh;overflow-y:auto;animation:up .25s ease}
+.sheet{position:relative;background:var(--surface);width:100%;max-width:640px;margin:10vh auto 0;border-radius:22px;padding:20px 16px calc(28px + env(safe-area-inset-bottom,0px));box-shadow:0 10px 40px rgba(0,0,0,.4);animation:up .25s ease}
+.sheetclose{position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-size:22px;line-height:1;display:grid;place-items:center;z-index:3;padding:0}
 @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:translateY(0);opacity:1}}
 .sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px}
 .sheet h2{font-size:17px;font-weight:800;margin-bottom:3px}
@@ -405,6 +407,7 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
 <!-- scanner -->
 <div class="overlay" id="scanOv" hidden>
   <div class="sheet">
+    <button class="sheetclose" type="button" id="scanX">×</button>
     <div class="grab"></div>
     <h2 id="scanTitle">Сканувати</h2>
     <div class="sub" id="scanSub">Наведи камеру на штрих-код панелі</div>
@@ -539,7 +542,7 @@ function openDetail(code){var p=panels.find(function(x){return x.code===code;});
   $('detDel').addEventListener('click',async function(){if(!confirm('Видалити запис по цій панелі?'))return;var r=await sb.from('panels').delete().eq('id',p.id);if(r.error){toast('Помилка','warn');return;}closeSheet();toast('Видалено');loadPanels();});
 }
 function dl(k,v){return '<div class="detail-line"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';}
-function openSheet(html){var s=document.createElement('div');s.className='overlay';s.id='genOv';s.innerHTML='<div class="sheet"><div class="grab"></div>'+html+'</div>';document.body.appendChild(s);s.addEventListener('click',function(e){if(e.target===s)closeSheet();});}
+function openSheet(html){var s=document.createElement('div');s.className='overlay';s.id='genOv';s.innerHTML='<div class="sheet"><button class="sheetclose" type="button" id="sheetCloseBtn">×</button><div class="grab"></div>'+html+'</div>';document.body.appendChild(s);s.addEventListener('click',function(e){if(e.target===s)closeSheet();});var cb=document.getElementById('sheetCloseBtn');if(cb)cb.addEventListener('click',closeSheet);}
 function closeSheet(){var s=$('genOv');if(s)s.remove();}
 
 /* ---------- STATS ---------- */
@@ -818,6 +821,7 @@ function cameraFail(msg){scanRunning=false;$('reader').innerHTML='<div style="pa
 function stopCamera(cb){if(qr&&scanRunning){qr.stop().then(function(){try{qr.clear();}catch(e){}scanRunning=false;qr=null;if(cb)cb();}).catch(function(){scanRunning=false;qr=null;if(cb)cb();});}else{qr=null;if(cb)cb();}}
 function closeScanner(){$('scanOv').hidden=true;$('reader').style.minHeight='230px';$('reader').style.background='#000';stopCamera();}
 $('scanClose').addEventListener('click',finishScan);
+$('scanX').addEventListener('click',finishScan);
 $('scanDone').addEventListener('click',finishScan);
 $('scanPhotoBtn').addEventListener('click',function(){$('scanPhoto').click();});
 $('scanPhoto').addEventListener('change',function(){var f=this.files&&this.files[0];this.value='';if(f)scanFromPhoto(f);});
