@@ -1,5 +1,6 @@
-/* Service worker — робить апку встановлюваною і дає їй відкриватись офлайн (сама оболонка). */
-const CACHE = 'oblik-panel-v1';
+/* Service worker — робить апку встановлюваною і дає офлайн-оболонку.
+   Мережа-перш-за-все: завжди тягне свіжу версію, а кеш — лише коли нема інтернету. */
+const CACHE = 'oblik-panel-v2';
 const SHELL = [
   './',
   './index.html',
@@ -24,13 +25,12 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  // Тільки свої файли кешуємо. Запити до Supabase та CDN — завжди напряму в мережу.
-  if (url.origin !== location.origin || e.request.method !== 'GET') return;
+  if (url.origin !== location.origin || e.request.method !== 'GET') return; // Supabase/CDN — напряму
   e.respondWith(
-    caches.match(e.request).then((r) => r || fetch(e.request).then((resp) => {
+    fetch(e.request).then((resp) => {
       const copy = resp.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
       return resp;
-    }).catch(() => caches.match('./index.html')))
+    }).catch(() => caches.match(e.request).then((r) => r || caches.match('./index.html')))
   );
 });

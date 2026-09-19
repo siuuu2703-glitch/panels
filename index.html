@@ -370,6 +370,8 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
     <div class="sub" id="scanSub">Наведи камеру на штрих-код панелі</div>
     <div id="reader"></div>
     <div id="scanStatus"></div>
+    <input type="file" accept="image/*" capture="environment" id="scanPhoto" hidden>
+    <button class="btn ghost" id="scanPhotoBtn" type="button" style="margin-top:12px">📷 Розпізнати з фото (для вузьких кодів)</button>
     <div class="field" style="margin-top:14px"><label>Або введи код вручну</label>
       <div style="display:flex;gap:8px"><input class="inp num" id="manualCode" inputmode="numeric" placeholder="номер панелі" style="flex:1"><button class="btn dark" id="manualAdd" style="width:auto;padding:0 20px">Додати</button></div>
     </div>
@@ -388,7 +390,7 @@ var config={margin:15};
 var rate={usd:0,eur:0,updatedAt:''};
 var panels=[], batches=[], ads=[];
 var adMode='usd';
-var pendingBuy=[], sellMode='usd', sellPanel=null, panelFilter='all', panelSearch='';
+var pendingBuy=[], sellBasket=[], sellMode='usd', sellPanel=null, panelFilter='all', panelSearch='';
 var scanCtx=null, qr=null, scanRunning=false, authMode='signin';
 
 function $(id){return document.getElementById(id);}
@@ -526,41 +528,60 @@ function resetBSave(){$('bSave').disabled=false;renderBuyPreview();}
 
 /* ---------- SELL ---------- */
 $('sScan').addEventListener('click',function(){openScanner('sell');});
-function renderSellStock(){var st=stockPanels().sort(function(a,b){return (b.purchaseDate||'')<(a.purchaseDate||'')?-1:1;});var list=$('sellStockList');if(!st.length){list.innerHTML=emptyHtml('Склад порожній','Спочатку додай панелі у вкладці «Закупити».','box');return;}list.innerHTML=st.map(function(p){return '<button class="row" data-code="'+p.code+'"><div><div class="code mono">'+shortCode(p.code)+'</div><div class="meta">соб. '+fmtUsd(p.costUsd)+' · '+dstr(p.purchaseDate)+'</div></div><div class="right"><span class="chip stock">обрати →</span></div></button>';}).join('');list.querySelectorAll('.row[data-code]').forEach(function(r){r.addEventListener('click',function(){selectSellPanel(r.getAttribute('data-code'));});});}
-function selectSellPanel(code){var p=panels.find(function(x){return x.code===code;});if(!p){toast('Панель не знайдено','warn');return;}if(p.status==='sold'){toast('Ця панель вже продана','warn');return;}sellPanel=p;$('sellPick').hidden=true;$('sellForm').hidden=false;renderSellForm();}
-function renderSellForm(){var p=sellPanel;if(!p)return;var rt=prefRate();var marginPct=config.margin||0;var target=p.costUsd*(1+marginPct/100);var beUah=rt?p.costUsd*rt:0;var tgUah=rt?target*rt:0;
-  $('sellForm').innerHTML='<button class="btn ghost" id="sBack" style="margin-bottom:14px;width:auto;padding:9px 14px;font-size:13px">← інша панель</button>'+
-    '<div class="card" style="padding:14px;margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center"><div class="code mono" style="font-size:14px;font-weight:700">'+shortCode(p.code)+'</div><span class="chip stock">на складі</span></div>'+
-    '<div class="detail-line" style="margin-top:8px"><span class="k">Собівартість</span><span class="v">'+fmtUsd(p.costUsd)+(rt?' <span style="color:var(--faint);font-weight:500">('+fmtUah(beUah)+')</span>':'')+'</span></div>'+
-    '<div class="detail-line"><span class="k">Рекоменд. ціна (+'+marginPct+'%)</span><span class="v pos">'+fmtUsd(target)+(rt?' <span style="color:var(--faint);font-weight:500">('+fmtUah(tgUah)+')</span>':'')+'</span></div></div>'+
-    '<div class="field"><label>Ціна продажу</label><div class="seg usd" id="sSeg" style="margin-bottom:10px"><button data-m="usd" class="on">$ долар</button><button data-m="uah">₴ гривня</button></div><div class="inp-group"><input class="inp has-suffix num" id="sAmount" inputmode="decimal" placeholder="0"><span class="suffix" id="sSuffix">$</span></div><div class="hint" id="sConv"></div></div>'+
+function panelByCode(code){return panels.find(function(x){return x.code===code;});}
+function renderSellStock(){var st=stockPanels().sort(function(a,b){return (b.purchaseDate||'')<(a.purchaseDate||'')?-1:1;});var list=$('sellStockList');if(!st.length){list.innerHTML=emptyHtml('Склад порожній','Спочатку додай панелі у вкладці «Закупити».','box');return;}list.innerHTML=st.map(function(p){var inb=sellBasket.indexOf(p.code)>=0;return '<button class="row" data-code="'+p.code+'"><div><div class="code mono">'+shortCode(p.code)+'</div><div class="meta">соб. '+fmtUsd(p.costUsd)+' · '+dstr(p.purchaseDate)+'</div></div><div class="right"><span class="chip '+(inb?'sold':'stock')+'">'+(inb?'✓ у списку':'додати +')+'</span></div></button>';}).join('');list.querySelectorAll('.row[data-code]').forEach(function(r){r.addEventListener('click',function(){addToSell(r.getAttribute('data-code'));});});}
+function selectSellPanel(code){addToSell(code);}
+function addToSell(code){var p=panelByCode(code);if(!p){toast('Панель не знайдено','warn');return;}if(p.status==='sold'){toast('Ця панель вже продана','warn');return;}if(sellBasket.indexOf(code)<0)sellBasket.push(code);$('sellPick').hidden=true;$('sellForm').hidden=false;renderSellForm();}
+function renderSellForm(){
+  if(!sellBasket.length){$('sellForm').hidden=true;$('sellPick').hidden=false;renderSellStock();return;}
+  var rt=prefRate();var marginPct=config.margin||0;
+  var items=sellBasket.map(panelByCode).filter(Boolean);var n=items.length;
+  var costSum=items.reduce(function(a,p){return a+(p.costUsd||0);},0);
+  var avgCost=n?costSum/n:0;var target=avgCost*(1+marginPct/100);
+  var rows=items.map(function(p){return '<div class="detail-line"><span class="k mono">'+shortCode(p.code)+'</span><span class="v">'+fmtUsd(p.costUsd)+' <button data-rm="'+p.code+'" style="background:none;border:0;color:var(--bad);font-weight:800;font-size:16px;padding:0 2px 0 6px">×</button></span></div>';}).join('');
+  $('sellForm').innerHTML=
+    '<div style="display:flex;gap:8px;margin-bottom:14px"><button class="btn ghost" id="sBack" style="width:auto;padding:9px 14px;font-size:13px">← назад</button><button class="btn block-scan" id="sMore" style="width:auto;padding:9px 16px;font-size:13px;margin:0"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M4 12h16"/></svg> Додати ще</button></div>'+
+    '<div class="card" style="padding:14px;margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:15px">'+n+' панел. до продажу</b></div>'+rows+
+    '<div class="detail-line" style="border-top:1px solid var(--line);margin-top:6px;padding-top:9px"><span class="k">Собівартість разом</span><span class="v">'+fmtUsd(costSum)+'</span></div>'+
+    '<div class="detail-line"><span class="k">Реком. ціна за шт (+'+marginPct+'%)</span><span class="v pos">'+fmtUsd(target)+'</span></div></div>'+
+    '<div class="field"><label>Ціна продажу — за одну панель</label><div class="seg usd" id="sSeg" style="margin-bottom:10px"><button data-m="usd" class="on">$ долар</button><button data-m="uah">₴ гривня</button></div><div class="inp-group"><input class="inp has-suffix num" id="sAmount" inputmode="decimal" placeholder="0"><span class="suffix" id="sSuffix">$</span></div><div class="hint" id="sConv"></div></div>'+
     '<div class="field"><label>Дата продажу</label><input class="inp" id="sDate" type="date" value="'+dateStr()+'"></div>'+
     '<div class="field"><label>Покупець <span style="color:var(--faint);font-weight:500">(необов\'язково)</span></label><input class="inp" id="sBuyer" placeholder="ім\'я або телефон"></div>'+
-    '<div id="sResult"></div><button class="btn good" id="sConfirm" style="margin-top:8px" disabled><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Провести продаж</button>';
+    '<div id="sResult"></div><button class="btn good" id="sConfirm" style="margin-top:8px" disabled><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Продати '+n+' шт</button>';
   sellMode='usd';
-  $('sBack').addEventListener('click',function(){sellPanel=null;$('sellForm').hidden=true;$('sellPick').hidden=false;renderSellStock();});
+  $('sBack').addEventListener('click',function(){sellBasket=[];$('sellForm').hidden=true;$('sellPick').hidden=false;renderSellStock();});
+  $('sMore').addEventListener('click',function(){openScanner('sell');});
+  $('sellForm').querySelectorAll('[data-rm]').forEach(function(b){b.addEventListener('click',function(){var c=b.getAttribute('data-rm');sellBasket=sellBasket.filter(function(x){return x!==c;});renderSellForm();});});
   $('sSeg').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){sellMode=bt.getAttribute('data-m');$('sSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('sSuffix').textContent=sellMode==='usd'?'$':'₴';calcSell();});});
   $('sAmount').addEventListener('input',calcSell);$('sConfirm').addEventListener('click',doSell);
   $('sAmount').value=target.toFixed(2);calcSell();
 }
-function calcSell(){var p=sellPanel;if(!p)return;var rt=prefRate();var amount=num($('sAmount').value);var saleUsd=sellMode==='usd'?amount:(rt?amount/rt:0);var profit=saleUsd-p.costUsd;var inp=$('sAmount');
-  var conv='';if(sellMode==='uah'){conv=rt?('= '+fmtUsd(saleUsd)+' за курсом '+rt.toFixed(2)):'Впиши курс у вкладці «Курс», щоб перевести в $';}else{conv=rt&&amount?('≈ '+fmtUah(amount*rt)+' за сьогоднішнім курсом'):'';}$('sConv').textContent=conv;
+function calcSell(){
+  var items=sellBasket.map(panelByCode).filter(Boolean);var n=items.length;if(!n)return;
+  var rt=prefRate();var amount=num($('sAmount').value);var unit=sellMode==='usd'?amount:(rt?amount/rt:0);
+  var costSum=items.reduce(function(a,p){return a+(p.costUsd||0);},0);
+  var revenue=unit*n;var profit=revenue-costSum;var inp=$('sAmount');
+  var conv='';if(sellMode==='uah'){conv=rt?('= '+fmtUsd(unit)+'/шт · разом '+fmtUsd(revenue)):'Впиши курс у «Ще», щоб перевести гривню в $';}else{conv=(rt&&amount?('≈ '+fmtUah(amount*rt)+'/шт · '):'')+'разом '+fmtUsd(revenue);}$('sConv').textContent=conv;
   var res=$('sResult');var canSell=amount>0&&(sellMode==='usd'||rt>0);
   if(!amount){res.innerHTML='';inp.classList.remove('bad');$('sConfirm').disabled=true;return;}
   if(sellMode==='uah'&&!rt){res.innerHTML='<div class="warn-box"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Немає курсу — не можу перевести гривню в долар</div>';$('sConfirm').disabled=true;return;}
-  var below=profit<0;inp.classList.toggle('bad',below);var mp=p.costUsd?Math.round(profit/p.costUsd*100):0;
-  if(below)res.innerHTML='<div class="warn-box"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Нижче собівартості на '+fmtUsd(Math.abs(profit))+' — ти в мінусі!</div>';
-  else res.innerHTML='<div class="warn-box ok-box"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Прибуток '+fmtUsd(profit)+' (+'+mp+'%)</div>';
+  var mp=costSum?Math.round(profit/costSum*100):0;inp.classList.toggle('bad',profit<0);
+  if(profit<0)res.innerHTML='<div class="warn-box"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Разом нижче собівартості на '+fmtUsd(Math.abs(profit))+' — ти в мінусі!</div>';
+  else res.innerHTML='<div class="warn-box ok-box"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Прибуток разом '+fmtUsd(profit)+' (+'+mp+'%) з '+n+' шт</div>';
   $('sConfirm').disabled=!canSell;
 }
-async function doSell(){var p=sellPanel;if(!p)return;var rt=prefRate();var amount=num($('sAmount').value);var saleUsd=sellMode==='usd'?amount:(rt?amount/rt:0);if(amount<=0)return;var profit=saleUsd-p.costUsd;
-  if(profit<0&&!confirm('Ти продаєш нижче собівартості (мінус '+fmtUsd(Math.abs(profit))+'). Точно провести?'))return;
+async function doSell(){
+  var items=sellBasket.map(panelByCode).filter(Boolean);var n=items.length;if(!n)return;
+  var rt=prefRate();var amount=num($('sAmount').value);var unit=sellMode==='usd'?amount:(rt?amount/rt:0);if(amount<=0)return;
+  var costSum=items.reduce(function(a,p){return a+(p.costUsd||0);},0);var profit=unit*n-costSum;
+  if(profit<0&&!confirm('Разом продаж нижче собівартості (мінус '+fmtUsd(Math.abs(profit))+'). Точно провести?'))return;
   $('sConfirm').disabled=true;$('sConfirm').innerHTML='Проводжу…';
-  var sale={amount:amount,currency:sellMode,priceUsd:saleUsd,rate:rt,buyer:($('sBuyer').value||'').trim(),date:isoFrom($('sDate').value),profitUsd:profit};
-  var r=await sb.from('panels').update({status:'sold',sale:sale}).eq('id',p.id);
-  if(r.error){toast('Помилка','warn');$('sConfirm').disabled=false;$('sConfirm').innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Провести продаж';return;}
-  toast('Продаж проведено · '+(profit>=0?'+':'−')+fmtUsd(Math.abs(profit)),profit>=0?'ok':'warn');buzz();
-  sellPanel=null;$('sellForm').hidden=true;$('sellPick').hidden=false;await loadPanels();showTab('s-home');
+  var date=isoFrom($('sDate').value);var buyer=($('sBuyer').value||'').trim();var okc=0;
+  for(var i=0;i<items.length;i++){var p=items[i];var sale={amount:amount,currency:sellMode,priceUsd:unit,rate:rt,buyer:buyer,date:date,profitUsd:unit-(p.costUsd||0)};var r=await sb.from('panels').update({status:'sold',sale:sale}).eq('id',p.id);if(!r.error)okc++;}
+  buzz();
+  if(okc<n)toast('Продано '+okc+' з '+n+' (частина з помилкою)','warn');
+  else toast('Продано '+n+' шт · '+(profit>=0?'+':'−')+fmtUsd(Math.abs(profit)),profit>=0?'ok':'warn');
+  sellBasket=[];$('sellForm').hidden=true;$('sellPick').hidden=false;await loadPanels();showTab('s-home');
 }
 
 /* ---------- RATE / SETTINGS ---------- */
@@ -600,19 +621,27 @@ $('rExport').addEventListener('click',function(){
 /* ---------- SCANNER ---------- */
 var scanFormats=null;
 function supportedFormats(){if(scanFormats!==null)return scanFormats;try{var F=window.Html5QrcodeSupportedFormats;scanFormats=[F.CODE_128,F.CODE_39,F.CODE_93,F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.ITF,F.CODABAR,F.QR_CODE];}catch(e){scanFormats=undefined;}return scanFormats;}
-function openScanner(ctx){scanCtx=ctx;$('scanTitle').textContent=ctx==='buy'?'Сканувати партію':'Сканувати панель';$('scanSub').textContent=ctx==='buy'?'Наводь на кожну панель — коди назбираються у список':'Наведи камеру на штрих-код';$('scanOv').hidden=false;$('scanStatus').innerHTML='';$('scanCodes').innerHTML='';$('manualCode').value='';updateScanDone();startCamera();}
-function updateScanCodes(){if(scanCtx!=='buy'){$('scanCodes').innerHTML='';return;}$('scanCodes').innerHTML=pendingBuy.map(function(c){return '<span class="code-chip mono">'+shortCode(c)+'<button data-c="'+c+'">×</button></span>';}).join('');$('scanCodes').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){pendingBuy=pendingBuy.filter(function(x){return x!==bt.getAttribute('data-c');});updateScanCodes();updateScanDone();});});}
-function updateScanDone(){var n=pendingBuy.length;$('scanDone').hidden=scanCtx!=='buy'||n===0;$('scanDoneN').textContent=n?('· '+n):'';}
-function handleScan(code){code=String(code).trim();if(!code)return;if(scanCtx==='buy'){if(pendingBuy.indexOf(code)>=0){toast('Вже у списку');return;}pendingBuy.push(code);buzz();$('scanStatus').innerHTML='<div class="scan-live"><span class="pulse"></span>У списку ('+pendingBuy.length+'): '+shortCode(code)+'</div>';updateScanCodes();updateScanDone();}else{buzz();closeScanner();selectSellPanel(code);}}
+function curList(){return scanCtx==='sell'?sellBasket:pendingBuy;}
+function openScanner(ctx){scanCtx=ctx;$('scanTitle').textContent=ctx==='buy'?'Сканувати партію':'Сканувати панелі';$('scanSub').textContent='Наводь на кожну панель — коди збираються у список';$('scanOv').hidden=false;$('scanStatus').innerHTML='';$('manualCode').value='';updateScanCodes();updateScanDone();startCamera();}
+function updateScanCodes(){var list=curList();$('scanCodes').innerHTML=list.map(function(c){return '<span class="code-chip mono">'+shortCode(c)+'<button data-c="'+c+'">×</button></span>';}).join('');$('scanCodes').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){var c=bt.getAttribute('data-c');if(scanCtx==='sell')sellBasket=sellBasket.filter(function(x){return x!==c;});else pendingBuy=pendingBuy.filter(function(x){return x!==c;});updateScanCodes();updateScanDone();});});}
+function updateScanDone(){var n=curList().length;$('scanDone').hidden=n===0;$('scanDoneN').textContent=n?('· '+n):'';}
+function handleScan(code){code=String(code).trim();if(!code)return;
+  if(scanCtx==='sell'){var p=panelByCode(code);if(!p){toast('Немає такої панелі на складі','warn');return;}if(p.status==='sold'){toast('Ця панель вже продана','warn');return;}if(sellBasket.indexOf(code)>=0){toast('Вже у списку');return;}sellBasket.push(code);buzz();$('scanStatus').innerHTML='<div class="scan-live"><span class="pulse"></span>У списку ('+sellBasket.length+'): '+shortCode(code)+'</div>';updateScanCodes();updateScanDone();return;}
+  if(pendingBuy.indexOf(code)>=0){toast('Вже у списку');return;}pendingBuy.push(code);buzz();$('scanStatus').innerHTML='<div class="scan-live"><span class="pulse"></span>У списку ('+pendingBuy.length+'): '+shortCode(code)+'</div>';updateScanCodes();updateScanDone();}
+function finishScan(){closeScanner();if(scanCtx==='sell'){if(sellBasket.length){$('sellPick').hidden=true;$('sellForm').hidden=false;renderSellForm();}else renderSellStock();}else{renderBuyCodes();renderBuyPreview();}}
 function startCamera(){var reader=$('reader');reader.innerHTML='';if(typeof Html5Qrcode==='undefined'){cameraFail('Бібліотека сканера не завантажилась. Введи код вручну нижче.');return;}
   try{var cfg=supportedFormats();qr=new Html5Qrcode('reader',cfg?{formatsToSupport:cfg,verbose:false}:{verbose:false});}catch(e){cameraFail('Не вдалося ініціалізувати сканер. Введи код вручну.');return;}
-  var box=function(vw,vh){return {width:Math.round(Math.min(vw*0.82,320)),height:Math.round(Math.min(vh*0.5,180))};};
-  qr.start({facingMode:'environment'},{fps:12,qrbox:box,aspectRatio:1.2},function(t){handleScan(t);},function(){}).then(function(){scanRunning=true;$('scanStatus').innerHTML='<div class="scan-live"><span class="pulse"></span>Камера активна — наводь на код</div>';}).catch(function(err){var s=String(err&&err.name||err||'');var msg;if(s.indexOf('NotAllowed')>=0)msg='Камеру заблоковано. Дозволь доступ або введи код вручну.';else if(s.indexOf('NotFound')>=0)msg='Камеру не знайдено. Введи код вручну.';else msg='Камера недоступна в цьому браузері. Введи код вручну нижче.';cameraFail(msg);});}
+  var box=function(vw,vh){return {width:Math.round(Math.min(vw*0.92,400)),height:Math.round(Math.min(vh*0.42,210))};};
+  var camCfg={facingMode:'environment',width:{ideal:1920},height:{ideal:1080},advanced:[{focusMode:'continuous'}]};
+  qr.start(camCfg,{fps:10,qrbox:box,aspectRatio:1.33,experimentalFeatures:{useBarCodeDetectorIfSupported:true}},function(t){handleScan(t);},function(){}).then(function(){scanRunning=true;$('scanStatus').innerHTML='<div class="scan-live"><span class="pulse"></span>Камера активна — тапни по коду для фокуса</div>';}).catch(function(err){var s=String(err&&err.name||err||'');var msg;if(s.indexOf('NotAllowed')>=0)msg='Камеру заблоковано. Дозволь доступ або введи код вручну.';else if(s.indexOf('NotFound')>=0)msg='Камеру не знайдено. Введи код вручну.';else msg='Камера недоступна в цьому браузері. Введи код вручну нижче.';cameraFail(msg);});}
+function scanFromPhoto(file){if(!file)return;$('scanStatus').innerHTML='<div class="scan-note">Розпізнаю з фото…</div>';stopCamera(function(){var fr;try{var cfg=supportedFormats();fr=new Html5Qrcode('reader',cfg?{formatsToSupport:cfg,verbose:false}:{verbose:false});}catch(e){toast('Помилка сканера','warn');startCamera();return;}fr.scanFile(file,false).then(function(txt){try{fr.clear();}catch(e){}handleScan(txt);startCamera();}).catch(function(){try{fr.clear();}catch(e){}toast('На фото не видно коду — сфоткай ближче й чіткіше','warn');startCamera();});});}
 function cameraFail(msg){scanRunning=false;$('reader').innerHTML='<div style="padding:26px 16px;text-align:center;color:var(--muted);font-size:13px;font-weight:600">📷 '+msg+'</div>';$('reader').style.minHeight='auto';$('reader').style.background='var(--surface-2)';setTimeout(function(){$('manualCode').focus();},200);}
 function stopCamera(cb){if(qr&&scanRunning){qr.stop().then(function(){try{qr.clear();}catch(e){}scanRunning=false;qr=null;if(cb)cb();}).catch(function(){scanRunning=false;qr=null;if(cb)cb();});}else{qr=null;if(cb)cb();}}
 function closeScanner(){$('scanOv').hidden=true;$('reader').style.minHeight='230px';$('reader').style.background='#000';stopCamera();}
-$('scanClose').addEventListener('click',function(){closeScanner();if(scanCtx==='buy'){renderBuyCodes();renderBuyPreview();}});
-$('scanDone').addEventListener('click',function(){closeScanner();renderBuyCodes();renderBuyPreview();});
+$('scanClose').addEventListener('click',finishScan);
+$('scanDone').addEventListener('click',finishScan);
+$('scanPhotoBtn').addEventListener('click',function(){$('scanPhoto').click();});
+$('scanPhoto').addEventListener('change',function(){var f=this.files&&this.files[0];this.value='';if(f)scanFromPhoto(f);});
 $('manualAdd').addEventListener('click',function(){var v=$('manualCode').value.trim();if(!v){$('manualCode').focus();return;}handleScan(v);$('manualCode').value='';$('manualCode').focus();});
 $('manualCode').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('manualAdd').click();}});
 
@@ -660,7 +689,7 @@ function subscribeRealtime(){
   try{sb=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}});}catch(e){$('cfgErr').hidden=false;return;}
   sb.auth.getSession().then(function(res){var session=res.data&&res.data.session;if(session)onLogin(session);else showAuth();});
   sb.auth.onAuthStateChange(function(_e,session){if(session&&!uid)onLogin(session);});
-  if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});var _rl=false;navigator.serviceWorker.addEventListener('controllerchange',function(){if(_rl)return;_rl=true;location.reload();});}
 })();
 })();
 </script>
