@@ -473,7 +473,7 @@ function mapPanel(r){return {id:r.id,code:r.code,batchId:r.batch_id,costUsd:+r.c
 
 async function loadPanels(){var r=await sb.from('panels').select('*');if(r.error){console.warn(r.error);return;}panels=(r.data||[]).map(mapPanel);renderAll();}
 async function loadBatches(){var r=await sb.from('batches').select('*');if(!r.error)batches=r.data||[];}
-async function loadSettings(){var r=await sb.from('settings').select('*').eq('user_id',uid).maybeSingle();if(!r.error&&r.data){rate.usd=+r.data.rate_usd||0;rate.eur=+r.data.rate_eur||0;rate.updatedAt=r.data.rate_updated||'';config.margin=(r.data.margin!=null?+r.data.margin:15);if(r.data.types&&r.data.types.length)config.types=r.data.types.map(Number);if(r.data.specs)config.specs=r.data.specs;}renderHeader();renderRate();renderTypeChips();renderTypesEditor();renderSpecList();}
+async function loadSettings(){try{var lt=localStorage.getItem('op_types');if(lt){var a=JSON.parse(lt);if(a&&a.length)config.types=a.map(Number);}}catch(e){}try{var ls=localStorage.getItem('op_specs');if(ls){var s=JSON.parse(ls);if(s)config.specs=s;}}catch(e){}var r=await sb.from('settings').select('*').eq('user_id',uid).maybeSingle();if(!r.error&&r.data){rate.usd=+r.data.rate_usd||0;rate.eur=+r.data.rate_eur||0;rate.updatedAt=r.data.rate_updated||'';config.margin=(r.data.margin!=null?+r.data.margin:15);if(r.data.types&&r.data.types.length)config.types=r.data.types.map(Number);if(r.data.specs)config.specs=r.data.specs;}renderHeader();renderRate();renderTypeChips();renderTypesEditor();renderSpecList();}
 function mapAd(r){return {id:r.id,date:r.date,amount:+r.amount,currency:r.currency,amountUsd:+r.amount_usd,rate:+r.rate,note:r.note};}
 async function loadAds(){var r=await sb.from('ad_expenses').select('*');if(!r.error){ads=(r.data||[]).map(mapAd);renderAds();renderHome();}}
 function adsTotalUsd(){return ads.reduce(function(a,x){return a+(x.amountUsd||0);},0);}
@@ -584,7 +584,7 @@ $('bPalletScan').addEventListener('click',function(){openScanner('palletcode');}
 /* types editor */
 function renderTypesEditor(){var w=$('typesList');if(!w)return;w.innerHTML=config.types.map(function(t){return '<span class="code-chip mono">'+t+' Вт<button data-t="'+t+'">×</button></span>';}).join('');w.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){var t=+b.getAttribute('data-t');config.types=config.types.filter(function(x){return x!=t;});saveTypes();renderTypesEditor();renderTypeChips();});});}
 $('typeAdd').addEventListener('click',function(){var v=num($('typeNew').value);if(v<=0){toast('Впиши число','warn');return;}if(config.types.indexOf(v)<0)config.types.push(v);config.types.sort(function(a,b){return a-b;});$('typeNew').value='';saveTypes();renderTypesEditor();renderTypeChips();toast('Додано','ok');});
-function saveTypes(){sb.from('settings').upsert({user_id:uid,types:config.types}).catch(function(){});}
+function saveTypes(){try{localStorage.setItem('op_types',JSON.stringify(config.types));}catch(e){}sb.from('settings').upsert({user_id:uid,types:config.types}).catch(function(){});}
 $('bScan').addEventListener('click',function(){openScanner('buy');});
 $('bBulkAdd').addEventListener('click',function(){var arr=parseCodes($('bBulk').value);if(!arr.length){toast('Порожньо');return;}var r=addPendingCodes(arr);$('bBulk').value='';renderBuyCodes();renderBuyPreview();toast('Додано '+r.added+(r.dup?(' · '+r.dup+' повтор'):''),'ok');});
 $('bPaste').addEventListener('click',async function(){try{var t=await navigator.clipboard.readText();if(!t){toast('Буфер порожній','warn');return;}var arr=parseCodes(t);if(!arr.length){toast('У буфері нема номерів','warn');return;}var r=addPendingCodes(arr);renderBuyCodes();renderBuyPreview();toast('Додано '+r.added+(r.dup?(' · '+r.dup+' повтор'):''),'ok');}catch(e){$('bBulk').focus();toast('Встав у поле вручну і тисни «Додати список»','warn');}});
@@ -739,7 +739,7 @@ function openSpecEditor(cur){cur=cur||config.types[0];if(!cur){toast('Споча
   $('spTypes').querySelectorAll('[data-w]').forEach(function(b){b.addEventListener('click',function(){grab();saveSpecs();closeSheet();openSpecEditor(+b.getAttribute('data-w'));});});
   $('spSave').addEventListener('click',function(){grab();saveSpecs();renderSpecList();toast('Збережено','ok');closeSheet();});
 }
-function saveSpecs(){sb.from('settings').upsert({user_id:uid,specs:config.specs}).catch(function(){});}
+function saveSpecs(){try{localStorage.setItem('op_specs',JSON.stringify(config.specs));}catch(e){}sb.from('settings').upsert({user_id:uid,specs:config.specs}).catch(function(){});}
 $('specEditBtn').addEventListener('click',function(){openSpecEditor();});
 
 /* ---------- REPORTS (звіти) ---------- */
