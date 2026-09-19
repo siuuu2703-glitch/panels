@@ -379,6 +379,7 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
         <div class="hint" style="margin-bottom:10px">Параметри по кожному типу — вага, розміри тощо, щоб не шукати деінде.</div>
         <div class="list" id="specList"></div>
         <button class="btn ghost" id="specEditBtn" style="margin-top:10px">Редагувати параметри</button>
+        <div id="specEditorInline" style="margin-top:14px" hidden></div>
       </div>
       <div class="card" style="padding:16px;margin-bottom:16px">
         <div class="eyebrow" style="margin-bottom:10px">Дані</div>
@@ -733,13 +734,15 @@ $('rExport').addEventListener('click',function(){
 /* ---------- SPECS (довідник) ---------- */
 var specFields=[['weight','Вага, кг'],['w','Ширина, мм'],['h','Висота, мм'],['d','Товщина, мм'],['v','Напруга, V'],['a','Струм, A'],['note','Примітка']];
 function renderSpecList(){var w=$('specList');if(!w)return;var keys=config.types;if(!keys.length){w.innerHTML='<div class="hint">Спочатку додай типи вище.</div>';return;}w.innerHTML=keys.map(function(t){var s=config.specs[t]||{};var parts=[];if(s.weight)parts.push(s.weight+' кг');if(s.w&&s.h)parts.push(s.w+'×'+s.h+(s.d?'×'+s.d:'')+' мм');if(s.v)parts.push(s.v+'V');var sub=parts.join(' · ')||'нема даних';return '<div class="row" style="cursor:default"><div><div class="code">'+t+' Вт</div><div class="meta">'+sub+(s.note?' · '+s.note:'')+'</div></div></div>';}).join('');}
-function openSpecEditor(cur){cur=cur||config.types[0];if(!cur){toast('Спочатку додай типи','warn');return;}var s=config.specs[cur]||{};
+function openSpecEditor(cur){var host=$('specEditorInline');if(!host)return;cur=cur||config.types[0];if(!cur){toast('Спочатку додай типи','warn');return;}var s=config.specs[cur]||{};
   var chips=config.types.map(function(t){return '<button type="button" class="code-chip" data-w="'+t+'" style="cursor:pointer;'+(t===cur?'outline:2px solid var(--accent);background:var(--accent);color:#231506;':'')+'">'+t+' Вт</button>';}).join('');
   var fields=specFields.map(function(f){return '<div class="field" style="margin-bottom:10px"><label>'+f[1]+'</label><input class="inp" id="sp_'+f[0]+'" value="'+(s[f[0]]!=null?String(s[f[0]]).replace(/"/g,'&quot;'):'')+'"></div>';}).join('');
-  openSheet('<h2>Параметри панелей</h2><div class="sub">Обери тип і впиши дані</div><div class="codes-wrap" id="spTypes" style="margin-bottom:14px">'+chips+'</div>'+fields+'<button class="btn good" id="spSave" style="margin-top:6px"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Зберегти '+cur+' Вт</button>');
-  function grab(){var o={};specFields.forEach(function(f){var v=$('sp_'+f[0]).value.trim();if(v)o[f[0]]=v;});config.specs[cur]=o;}
-  $('spTypes').querySelectorAll('[data-w]').forEach(function(b){b.addEventListener('click',function(){grab();saveSpecs();closeSheet();openSpecEditor(+b.getAttribute('data-w'));});});
-  $('spSave').addEventListener('click',function(){grab();saveSpecs();renderSpecList();toast('Збережено','ok');closeSheet();});
+  host.hidden=false;
+  host.innerHTML='<div class="card" style="padding:14px;background:var(--surface-2)"><div class="eyebrow" style="margin-bottom:8px">Впиши дані по типу</div><div class="codes-wrap" id="spTypes" style="margin-bottom:14px">'+chips+'</div>'+fields+'<button class="btn good" type="button" id="spSave"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Зберегти '+cur+' Вт</button><button class="btn ghost" type="button" id="spDone" style="margin-top:8px">Готово</button></div>';
+  function grab(){var o={};specFields.forEach(function(f){var el=$('sp_'+f[0]);if(el){var v=el.value.trim();if(v)o[f[0]]=v;}});config.specs[cur]=o;}
+  $('spTypes').querySelectorAll('[data-w]').forEach(function(b){b.addEventListener('click',function(){grab();saveSpecs();openSpecEditor(+b.getAttribute('data-w'));});});
+  $('spSave').addEventListener('click',function(){grab();saveSpecs();renderSpecList();toast('Збережено ✓','ok');});
+  $('spDone').addEventListener('click',function(){grab();saveSpecs();renderSpecList();host.hidden=true;host.innerHTML='';});
 }
 function saveSpecs(){try{localStorage.setItem('op_specs',JSON.stringify(config.specs));}catch(e){}sb.from('settings').upsert({user_id:uid,specs:config.specs}).catch(function(){});}
 $('specEditBtn').addEventListener('click',function(){openSpecEditor();});
