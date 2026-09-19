@@ -47,7 +47,9 @@
   --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.6);
 }
 *{box-sizing:border-box}
-html,body{height:100%}
+html,body{height:100%;overflow-x:hidden}
+input[type="date"],input[type="month"]{min-width:0;max-width:100%;box-sizing:border-box}
+.row2>*{min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"Manrope",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%;overscroll-behavior-y:none;overflow:hidden}
 img{max-width:100%}
 [hidden]{display:none!important}
@@ -59,7 +61,7 @@ textarea.inp{font-weight:600;color:var(--ink)}
 h1,h2,h3{margin:0;text-wrap:balance}
 
 #app{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
-header.top{flex:0 0 auto;z-index:30;background:var(--brand);color:#fff;padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
+header.top{flex:0 0 auto;z-index:30;background:var(--brand);color:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
 header.top .logo{width:30px;height:30px;border-radius:9px;flex:0 0 auto;background:linear-gradient(150deg,var(--accent),#c9761a);display:grid;place-items:center;color:#1b1206;font-weight:800;font-size:15px;box-shadow:0 2px 8px rgba(232,145,42,.4)}
 header.top .ttl{font-weight:800;font-size:16px;letter-spacing:-.01em;line-height:1.1}
 header.top .sub{font-size:11px;color:#aeb6c2;font-weight:500;margin-top:1px}
@@ -71,7 +73,7 @@ main{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:
 section.screen[hidden]{display:none}
 
 nav.tabs{flex:0 0 auto;z-index:50;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(5,1fr);gap:2px;box-shadow:0 -6px 24px -18px rgba(0,0,0,.5)}
-nav.tabs button{background:none;border:0;color:var(--faint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 2px;min-height:56px;border-radius:12px;font-size:10.5px;font-weight:600}
+nav.tabs button{background:none;border:0;color:var(--faint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px;min-height:48px;border-radius:12px;font-size:10.5px;font-weight:600}
 nav.tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 nav.tabs button.active{color:var(--accent)}
 nav.tabs button.active svg{stroke:var(--accent)}
@@ -304,8 +306,9 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
       <h2 style="font-size:18px;margin-bottom:3px">Продаж</h2>
       <p style="font-size:13px;color:var(--muted);margin:0 0 16px">Скануй панель, і апка покаже собівартість у $ та твій прибуток у $.</p>
       <div id="sellPick">
-        <button class="btn block-scan" id="sScan" type="button" style="margin-bottom:12px"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M4 12h16"/></svg>Сканувати панель</button>
-        <div class="sec-title" style="margin:6px 2px 8px"><h2>Або обери зі складу</h2></div>
+        <button class="btn block-scan" id="sScan" type="button" style="margin-bottom:10px"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M4 12h16"/></svg>Сканувати панель</button>
+        <button class="btn good" id="sProceed" type="button" style="margin-bottom:12px" hidden><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Продати обране (0) →</button>
+        <div class="sec-title" style="margin:6px 2px 8px"><h2>Обери зі складу — тапай «додати +»</h2></div>
         <div class="list" id="sellStockList"></div>
       </div>
       <div id="sellForm" hidden></div>
@@ -613,6 +616,7 @@ function resetBSave(){$('bSave').disabled=false;renderBuyPreview();}
 
 /* ---------- SELL ---------- */
 $('sScan').addEventListener('click',function(){openScanner('sell');});
+$('sProceed').addEventListener('click',openSellForm);
 function panelByCode(code){return panels.find(function(x){return x.code===code;});}
 function renderSellStock(){
   var st=stockPanels();var list=$('sellStockList');
@@ -628,10 +632,13 @@ function renderSellStock(){
   html+=single.map(function(p){var inb=sellBasket.indexOf(p.code)>=0;return '<button class="row" data-code="'+p.code+'"><div><div class="code mono">'+shortCode(p.code)+'</div><div class="meta">соб. '+fmtUsd(p.costUsd)+(p.watt?' · '+p.watt+'Вт':'')+' · '+dstr(p.purchaseDate)+'</div></div><div class="right"><span class="chip '+(inb?'sold':'stock')+'">'+(inb?'✓ у списку':'додати +')+'</span></div></button>';}).join('');
   list.innerHTML=html;
   list.querySelectorAll('.row[data-code]').forEach(function(r){r.addEventListener('click',function(){addToSell(r.getAttribute('data-code'));});});
-  list.querySelectorAll('.row[data-pal]').forEach(function(r){r.addEventListener('click',function(){var k=r.getAttribute('data-pal');var arr=stockPanels().filter(function(p){return p.palletCode===k;});arr.forEach(function(p){if(sellBasket.indexOf(p.code)<0)sellBasket.push(p.code);});$('sellPick').hidden=true;$('sellForm').hidden=false;renderSellForm();toast('Палета: '+arr.length+' шт у кошику','ok');});});
+  list.querySelectorAll('.row[data-pal]').forEach(function(r){r.addEventListener('click',function(){var k=r.getAttribute('data-pal');var arr=stockPanels().filter(function(p){return p.palletCode===k;});var add=0;arr.forEach(function(p){if(sellBasket.indexOf(p.code)<0){sellBasket.push(p.code);add++;}});renderSellStock();toast('Палета: +'+add+' у кошик','ok');});});
+  updateProceed();
 }
-function selectSellPanel(code){addToSell(code);}
-function addToSell(code){var p=panelByCode(code);if(!p){toast('Панель не знайдено','warn');return;}if(p.status==='sold'){toast('Ця панель вже продана','warn');return;}if(sellBasket.indexOf(code)<0)sellBasket.push(code);$('sellPick').hidden=true;$('sellForm').hidden=false;renderSellForm();}
+function selectSellPanel(code){var p=panelByCode(code);if(!p){toast('Панель не знайдено','warn');return;}if(p.status==='sold'){toast('Ця панель вже продана','warn');return;}if(sellBasket.indexOf(code)<0)sellBasket.push(code);openSellForm();}
+function addToSell(code){var p=panelByCode(code);if(!p){toast('Панель не знайдено','warn');return;}if(p.status==='sold'){toast('Ця панель вже продана','warn');return;}var i=sellBasket.indexOf(code);if(i>=0)sellBasket.splice(i,1);else sellBasket.push(code);renderSellStock();}
+function openSellForm(){$('sellPick').hidden=true;$('sellForm').hidden=false;renderSellForm();}
+function updateProceed(){var b=$('sProceed');if(!b)return;b.hidden=sellBasket.length===0;b.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Продати обране ('+sellBasket.length+') →';}
 function renderSellForm(){
   if(!sellBasket.length){$('sellForm').hidden=true;$('sellPick').hidden=false;renderSellStock();return;}
   var rt=prefRate();var marginPct=config.margin||0;
@@ -649,7 +656,7 @@ function renderSellForm(){
     '<div class="field"><label>Покупець <span style="color:var(--faint);font-weight:500">(необов\'язково)</span></label><input class="inp" id="sBuyer" placeholder="ім\'я або телефон"></div>'+
     '<div id="sResult"></div><button class="btn good" id="sConfirm" style="margin-top:8px" disabled><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Продати '+n+' шт</button>';
   sellMode='usd';
-  $('sBack').addEventListener('click',function(){sellBasket=[];$('sellForm').hidden=true;$('sellPick').hidden=false;renderSellStock();});
+  $('sBack').addEventListener('click',function(){$('sellForm').hidden=true;$('sellPick').hidden=false;renderSellStock();});
   $('sMore').addEventListener('click',function(){openScanner('sell');});
   $('sellForm').querySelectorAll('[data-rm]').forEach(function(b){b.addEventListener('click',function(){var c=b.getAttribute('data-rm');sellBasket=sellBasket.filter(function(x){return x!==c;});renderSellForm();});});
   $('sSeg').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){sellMode=bt.getAttribute('data-m');$('sSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('sSuffix').textContent=sellMode==='usd'?'$':'₴';calcSell();});});
@@ -801,7 +808,7 @@ function handleScan(code){code=String(code).trim();if(!code)return;
     updateScanCodes();updateScanDone();return;
   }
   if(pendingBuy.indexOf(code)>=0){toast('Вже у списку');return;}pendingBuy.push(code);buzz();$('scanStatus').innerHTML='<div class="scan-live"><span class="pulse"></span>У списку ('+pendingBuy.length+'): '+shortCode(code)+'</div>';updateScanCodes();updateScanDone();}
-function finishScan(){closeScanner();if(scanCtx==='sell'){if(sellBasket.length){$('sellPick').hidden=true;$('sellForm').hidden=false;renderSellForm();}else renderSellStock();}else{renderBuyCodes();renderBuyPreview();}}
+function finishScan(){closeScanner();if(scanCtx==='sell'){$('sellPick').hidden=false;$('sellForm').hidden=true;renderSellStock();}else{renderBuyCodes();renderBuyPreview();}}
 function startCamera(){var reader=$('reader');reader.innerHTML='';if(typeof Html5Qrcode==='undefined'){cameraFail('Бібліотека сканера не завантажилась. Введи код вручну нижче.');return;}
   try{var cfg=supportedFormats();qr=new Html5Qrcode('reader',cfg?{formatsToSupport:cfg,verbose:false}:{verbose:false});}catch(e){cameraFail('Не вдалося ініціалізувати сканер. Введи код вручну.');return;}
   var box=function(vw,vh){return {width:Math.round(Math.min(vw*0.9,380)),height:Math.round(Math.min(vh*0.45,220))};};
