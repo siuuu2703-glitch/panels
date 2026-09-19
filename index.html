@@ -70,7 +70,8 @@ header.top .rate-pill{margin-left:auto;display:flex;flex-direction:column;align-
 header.top .rate-pill b{font-size:13px;color:#fff}
 header.top .rate-pill span{font-size:9.5px;color:#9aa3b2;text-transform:uppercase;letter-spacing:.06em}
 
-main{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:16px 16px 24px;max-width:640px;margin:0 auto;width:100%}
+main{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:16px 16px 24px;max-width:640px;margin:0 auto;width:100%}
+#app.sheet-open>header,#app.sheet-open>main,#app.sheet-open>nav{pointer-events:none!important}
 section.screen[hidden]{display:none}
 
 nav.tabs{flex:0 0 auto;z-index:50;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(5,1fr);gap:2px;box-shadow:0 -6px 24px -18px rgba(0,0,0,.5)}
@@ -143,7 +144,7 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
 .empty h3{font-size:16px;color:var(--ink);margin-bottom:5px}
 .empty p{font-size:13px;max-width:34ch;margin:0 auto}
 
-.overlay{position:absolute;inset:0;z-index:70;background:rgba(8,11,15,.94);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.overlay{position:absolute;inset:0;z-index:70;background:rgba(8,11,15,.94);overflow-y:auto}
 .overlay[hidden]{display:none}
 .sheet{position:relative;background:var(--surface);width:100%;max-width:640px;margin:10vh auto 0;border-radius:22px;padding:20px 16px calc(28px + env(safe-area-inset-bottom,0px));box-shadow:0 10px 40px rgba(0,0,0,.4);animation:up .25s ease}
 .sheetclose{position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-size:22px;line-height:1;display:grid;place-items:center;z-index:3;padding:0}
@@ -542,8 +543,9 @@ function openDetail(code){var p=panels.find(function(x){return x.code===code;});
   $('detDel').addEventListener('click',async function(){if(!confirm('Видалити запис по цій панелі?'))return;var r=await sb.from('panels').delete().eq('id',p.id);if(r.error){toast('Помилка','warn');return;}closeSheet();toast('Видалено');loadPanels();});
 }
 function dl(k,v){return '<div class="detail-line"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';}
-function openSheet(html){var s=document.createElement('div');s.className='overlay';s.id='genOv';s.innerHTML='<div class="sheet"><button class="sheetclose" type="button" id="sheetCloseBtn">×</button><div class="grab"></div>'+html+'</div>';(document.getElementById('app')||document.body).appendChild(s);s.addEventListener('click',function(e){if(e.target===s)closeSheet();});var cb=document.getElementById('sheetCloseBtn');if(cb)cb.addEventListener('click',closeSheet);}
-function closeSheet(){var s=$('genOv');if(s)s.remove();}
+function openSheet(html){var s=document.createElement('div');s.className='overlay';s.id='genOv';s.innerHTML='<div class="sheet"><button class="sheetclose" type="button" id="sheetCloseBtn">×</button><div class="grab"></div>'+html+'</div>';(document.getElementById('app')||document.body).appendChild(s);var ap=document.getElementById('app');if(ap)ap.classList.add('sheet-open');s.addEventListener('click',function(e){if(e.target===s)closeSheet();});var cb=document.getElementById('sheetCloseBtn');if(cb)cb.addEventListener('click',closeSheet);}
+function closeSheet(){var s=$('genOv');if(s)s.remove();syncSheetOpen();}
+function syncSheetOpen(){var ap=document.getElementById('app');if(!ap)return;var scanOpen=$('scanOv')&&!$('scanOv').hidden;var genOpen=!!$('genOv');if(scanOpen||genOpen)ap.classList.add('sheet-open');else ap.classList.remove('sheet-open');}
 
 /* ---------- STATS ---------- */
 var MON=['січ','лют','бер','кві','тра','чер','лип','сер','вер','жов','лис','гру'];
@@ -799,7 +801,7 @@ $('reportBtn').addEventListener('click',openReport);
 var scanFormats=null;
 function supportedFormats(){if(scanFormats!==null)return scanFormats;try{var F=window.Html5QrcodeSupportedFormats;scanFormats=[F.CODE_128,F.CODE_39,F.CODE_93,F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.ITF,F.CODABAR,F.QR_CODE];}catch(e){scanFormats=undefined;}return scanFormats;}
 function curList(){return scanCtx==='sell'?sellBasket:(scanCtx==='buy'?pendingBuy:[]);}
-function openScanner(ctx){scanCtx=ctx;$('scanTitle').textContent=ctx==='buy'?'Сканувати партію':(ctx==='palletcode'?'Код палети':'Сканувати панелі');$('scanSub').textContent=ctx==='palletcode'?'Наведи на штрих-код палети':'Наводь на кожну панель — коди збираються у список';$('scanOv').hidden=false;$('scanStatus').innerHTML='';$('manualCode').value='';updateScanCodes();updateScanDone();startCamera();}
+function openScanner(ctx){scanCtx=ctx;$('scanTitle').textContent=ctx==='buy'?'Сканувати партію':(ctx==='palletcode'?'Код палети':'Сканувати панелі');$('scanSub').textContent=ctx==='palletcode'?'Наведи на штрих-код палети':'Наводь на кожну панель — коди збираються у список';$('scanOv').hidden=false;syncSheetOpen();$('scanStatus').innerHTML='';$('manualCode').value='';updateScanCodes();updateScanDone();startCamera();}
 function updateScanCodes(){var list=curList();$('scanCodes').innerHTML=list.map(function(c){return '<span class="code-chip mono">'+shortCode(c)+'<button data-c="'+c+'">×</button></span>';}).join('');$('scanCodes').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){var c=bt.getAttribute('data-c');if(scanCtx==='sell')sellBasket=sellBasket.filter(function(x){return x!==c;});else pendingBuy=pendingBuy.filter(function(x){return x!==c;});updateScanCodes();updateScanDone();});});}
 function updateScanDone(){var n=curList().length;$('scanDone').hidden=n===0;$('scanDoneN').textContent=n?('· '+n):'';}
 function handleScan(code){code=String(code).trim();if(!code)return;
@@ -819,7 +821,7 @@ function startCamera(){var reader=$('reader');reader.innerHTML='';if(typeof Html
 function scanFromPhoto(file){if(!file)return;$('scanStatus').innerHTML='<div class="scan-note">Розпізнаю з фото…</div>';stopCamera(function(){$('reader').innerHTML='';$('reader').style.minHeight='230px';$('reader').style.background='#000';var fr;try{var cfg=supportedFormats();fr=new Html5Qrcode('reader',cfg?{formatsToSupport:cfg,verbose:false}:{verbose:false});}catch(e){toast('Помилка сканера','warn');startCamera();return;}fr.scanFile(file,false).then(function(txt){try{fr.clear();}catch(e){}handleScan(txt);startCamera();}).catch(function(){try{fr.clear();}catch(e){}toast('На фото не видно коду — сфоткай так, щоб штрих-код заповнив кадр','warn');startCamera();});});}
 function cameraFail(msg){scanRunning=false;$('reader').innerHTML='<div style="padding:26px 16px;text-align:center;color:var(--muted);font-size:13px;font-weight:600">📷 '+msg+'</div>';$('reader').style.minHeight='auto';$('reader').style.background='var(--surface-2)';setTimeout(function(){$('manualCode').focus();},200);}
 function stopCamera(cb){if(qr&&scanRunning){qr.stop().then(function(){try{qr.clear();}catch(e){}scanRunning=false;qr=null;if(cb)cb();}).catch(function(){scanRunning=false;qr=null;if(cb)cb();});}else{qr=null;if(cb)cb();}}
-function closeScanner(){$('scanOv').hidden=true;$('reader').style.minHeight='230px';$('reader').style.background='#000';stopCamera();}
+function closeScanner(){$('scanOv').hidden=true;syncSheetOpen();$('reader').style.minHeight='230px';$('reader').style.background='#000';stopCamera();}
 $('scanClose').addEventListener('click',finishScan);
 $('scanX').addEventListener('click',finishScan);
 $('scanDone').addEventListener('click',finishScan);
