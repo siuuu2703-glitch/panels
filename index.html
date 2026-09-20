@@ -487,6 +487,15 @@ var pendingBuy=[], sellBasket=[], sellMode='usd', sellPanel=null, panelFilter='a
 var scanCtx=null, qr=null, scanRunning=false, authMode='signin';
 
 function $(id){return document.getElementById(id);}
+/* Універсальний обробник дотику: iOS інколи не генерує 'click' на динамічних кнопках,
+   тому слухаємо ще й сирий 'touchend' (його нічим не заблокуєш). Захист від подвійного спрацювання. */
+function onTap(el,fn){if(!el)return;var sx=0,sy=0,moved=false,last=0;
+  el.addEventListener('touchstart',function(e){var t=e.touches&&e.touches[0];if(t){sx=t.clientX;sy=t.clientY;}moved=false;},{passive:true});
+  el.addEventListener('touchmove',function(e){var t=e.touches&&e.touches[0];if(t&&(Math.abs(t.clientX-sx)>10||Math.abs(t.clientY-sy)>10))moved=true;},{passive:true});
+  el.addEventListener("touchend",function(e){if(moved)return;last=Date.now();if(e.cancelable)e.preventDefault();fn.call(el,e);});
+  el.addEventListener("click",function(e){if(Date.now()-last<700)return;fn.call(el,e);});
+}
+try{EventTarget.prototype.onTapM=function(fn){onTap(this,fn);};}catch(e){}
 function num(v){v=parseFloat(String(v).replace(',','.'));return isFinite(v)?v:0;}
 function fmtUsd(v){var n=Math.round((v||0)*100)/100;return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtUsd0(v){return '$'+Math.round(v||0).toLocaleString('en-US');}
@@ -504,15 +513,15 @@ function buzz(){try{if(navigator.vibrate)navigator.vibrate(45);}catch(e){}}
 
 /* theme */
 try{var th=localStorage.getItem('op_theme');if(th)document.documentElement.setAttribute('data-theme',th);}catch(e){}
-$('themeToggle').addEventListener('click',function(){var c=document.documentElement.getAttribute('data-theme');var n=c==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);try{localStorage.setItem('op_theme',n);}catch(e){}});
+onTap($('themeToggle'),function(){var c=document.documentElement.getAttribute('data-theme');var n=c==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);try{localStorage.setItem('op_theme',n);}catch(e){}});
 
 /* tabs */
 var tabBtns=document.querySelectorAll('nav.tabs button');
 function showTab(id){document.querySelectorAll('section.screen').forEach(function(s){s.hidden=s.id!==id;});tabBtns.forEach(function(b){b.classList.toggle('active',b.getAttribute('data-tab')===id);});var m=document.querySelector('main');if(m)m.scrollTop=0;if(id==='s-sell')renderSellStock();if(id==='s-panels')renderPanels();if(id==='s-buy')applyBuyDefaults();}
-tabBtns.forEach(function(b){b.addEventListener('click',function(){showTab(b.getAttribute('data-tab'));});});
-$('goPanels').addEventListener('click',function(){showTab('s-panels');});
-$('ratePill').addEventListener('click',function(){showTab('s-rate');});
-(function(){var tiles=document.querySelectorAll('#s-home .tile');var kinds=['stock','invested','profit','sold'];tiles.forEach(function(t,i){t.style.cursor='pointer';t.addEventListener('click',function(){openStats(kinds[i]);});});})();
+tabBtns.forEach(function(b){b.onTapM(function(){showTab(b.getAttribute('data-tab'));});});
+$('goPanels').onTapM(function(){showTab('s-panels');});
+$('ratePill').onTapM(function(){showTab('s-rate');});
+(function(){var tiles=document.querySelectorAll('#s-home .tile');var kinds=['stock','invested','profit','sold'];tiles.forEach(function(t,i){t.style.cursor='pointer';t.onTapM(function(){openStats(kinds[i]);});});})();
 
 /* ---------- data helpers ---------- */
 function stockPanels(){return panels.filter(function(p){return p.status==='stock';});}
@@ -557,12 +566,12 @@ function rowHtml(p){var sold=p.status==='sold';var amt,cls,meta;
   else{amt=fmtUsd(p.costUsd);cls='';meta='Собівартість · '+dstr(p.purchaseDate)+wt;}
   return '<button class="row" data-code="'+p.code+'"><div><div class="code mono">'+shortCode(p.code)+'</div><div class="meta">'+meta+'</div></div><div class="right"><span class="chip '+(sold?'sold':'stock')+'">'+(sold?'продано':'склад')+'</span><div class="amt '+cls+'" style="margin-top:4px">'+amt+'</div></div></button>';
 }
-function wireRows(root){root.querySelectorAll('.row[data-code]').forEach(function(r){r.addEventListener('click',function(){openDetail(r.getAttribute('data-code'));});});}
+function wireRows(root){root.querySelectorAll('.row[data-code]').forEach(function(r){r.onTapM(function(){openDetail(r.getAttribute('data-code'));});});}
 function emptyHtml(h,p,icon){var ic=icon==='box'?'<path d="M3 7 12 3l9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>':'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>';return '<div class="empty"><div class="ic"><svg viewBox="0 0 24 24">'+ic+'</svg></div><h3>'+h+'</h3><p>'+p+'</p></div>';}
 
-document.querySelectorAll('#s-panels .filter-bar button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#s-panels .filter-bar button').forEach(function(x){x.classList.remove('on');});b.classList.add('on');panelFilter=b.getAttribute('data-f');renderPanels();});});
+document.querySelectorAll('#s-panels .filter-bar button').forEach(function(b){b.onTapM(function(){document.querySelectorAll('#s-panels .filter-bar button').forEach(function(x){x.classList.remove('on');});b.classList.add('on');panelFilter=b.getAttribute('data-f');renderPanels();});});
 $('pSearch').addEventListener('input',function(){panelSearch=this.value.replace(/\s/g,'');renderPanels();});
-function renderPTypeFilter(){var w=$('pTypeFilter');if(!w)return;var chips=[{v:'all',l:'Всі типи'}].concat(config.types.map(function(t){return {v:t,l:t+' Вт'};}));w.innerHTML=chips.map(function(c){var on=(''+panelTypeFilter)===(''+c.v);return '<button type="button" class="code-chip" data-tf="'+c.v+'" style="cursor:pointer;'+(on?'outline:2px solid var(--accent);background:var(--accent);color:#231506;':'')+'">'+c.l+'</button>';}).join('');w.querySelectorAll('[data-tf]').forEach(function(b){b.addEventListener('click',function(){var v=b.getAttribute('data-tf');panelTypeFilter=(v==='all')?'all':+v;renderPanels();});});}
+function renderPTypeFilter(){var w=$('pTypeFilter');if(!w)return;var chips=[{v:'all',l:'Всі типи'}].concat(config.types.map(function(t){return {v:t,l:t+' Вт'};}));w.innerHTML=chips.map(function(c){var on=(''+panelTypeFilter)===(''+c.v);return '<button type="button" class="code-chip" data-tf="'+c.v+'" style="cursor:pointer;'+(on?'outline:2px solid var(--accent);background:var(--accent);color:#231506;':'')+'">'+c.l+'</button>';}).join('');w.querySelectorAll('[data-tf]').forEach(function(b){b.onTapM(function(){var v=b.getAttribute('data-tf');panelTypeFilter=(v==='all')?'all':+v;renderPanels();});});}
 function renderPanels(){renderPTypeFilter();var arr=panels.slice();if(panelFilter==='stock')arr=arr.filter(function(p){return p.status==='stock';});if(panelFilter==='sold')arr=arr.filter(function(p){return p.status==='sold';});if(panelTypeFilter!=='all')arr=arr.filter(function(p){return p.watt==panelTypeFilter;});if(panelSearch)arr=arr.filter(function(p){return p.code.indexOf(panelSearch)>=0;});arr.sort(byRecent);var list=$('panelsList');if(!arr.length){list.innerHTML=emptyHtml('Нічого не знайдено',panelSearch?'Немає панелі з таким кодом.':'Список порожній.','search');return;}list.innerHTML=arr.map(rowHtml).join('');wireRows(list);}
 
 function openDetail(code){var p=panels.find(function(x){return x.code===code;});if(!p)return;var sold=p.status==='sold';var lines='';
@@ -584,13 +593,13 @@ function openDetail(code){var p=panels.find(function(x){return x.code===code;});
   if(!sold)actions+='<button class="btn good" id="detSell" style="margin-top:8px"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Продати цю панель</button>';
   actions+='<button class="btn ghost" id="detDel" style="margin-top:10px;color:var(--bad)">Видалити запис</button>';
   openSheet('<h2>Панель '+shortCode(p.code)+'</h2><div class="sub">Повна історія по коду</div>'+lines+actions);
-  $('detPSave').addEventListener('click',async function(){var r=await sb.from('panels').update({purchase_date:isoFrom($('detPDate').value)}).eq('id',p.id);if(r.error){toast('Помилка','warn');return;}toast('Дату змінено','ok');closeSheet();loadPanels();});
-  if(sold)$('detSSave').addEventListener('click',async function(){var s=Object.assign({},p.sale,{date:isoFrom($('detSDate').value)});var r=await sb.from('panels').update({sale:s}).eq('id',p.id);if(r.error){toast('Помилка','warn');return;}toast('Дату змінено','ok');closeSheet();loadPanels();});
-  if(!sold)$('detSell').addEventListener('click',function(){closeSheet();selectSellPanel(p.code);showTab('s-sell');});
-  $('detDel').addEventListener('click',async function(){if(!confirm('Видалити запис по цій панелі?'))return;var r=await sb.from('panels').delete().eq('id',p.id);if(r.error){toast('Помилка','warn');return;}closeSheet();toast('Видалено');loadPanels();});
+  $('detPSave').onTapM(async function(){var r=await sb.from('panels').update({purchase_date:isoFrom($('detPDate').value)}).eq('id',p.id);if(r.error){toast('Помилка','warn');return;}toast('Дату змінено','ok');closeSheet();loadPanels();});
+  if(sold)$('detSSave').onTapM(async function(){var s=Object.assign({},p.sale,{date:isoFrom($('detSDate').value)});var r=await sb.from('panels').update({sale:s}).eq('id',p.id);if(r.error){toast('Помилка','warn');return;}toast('Дату змінено','ok');closeSheet();loadPanels();});
+  if(!sold)$('detSell').onTapM(function(){closeSheet();selectSellPanel(p.code);showTab('s-sell');});
+  $('detDel').onTapM(async function(){if(!confirm('Видалити запис по цій панелі?'))return;var r=await sb.from('panels').delete().eq('id',p.id);if(r.error){toast('Помилка','warn');return;}closeSheet();toast('Видалено');loadPanels();});
 }
 function dl(k,v){return '<div class="detail-line"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';}
-function openSheet(html){var s=document.createElement('div');s.className='overlay';s.id='genOv';s.innerHTML='<div class="sheet"><button class="sheetclose" type="button" id="sheetCloseBtn">×</button><div class="grab"></div>'+html+'</div>';(document.getElementById('app')||document.body).appendChild(s);var ap=document.getElementById('app');if(ap)ap.classList.add('sheet-open');s.addEventListener('click',function(e){if(e.target===s)closeSheet();});var cb=document.getElementById('sheetCloseBtn');if(cb)cb.addEventListener('click',closeSheet);}
+function openSheet(html){var s=document.createElement('div');s.className='overlay';s.id='genOv';s.innerHTML='<div class="sheet"><button class="sheetclose" type="button" id="sheetCloseBtn">×</button><div class="grab"></div>'+html+'</div>';(document.getElementById('app')||document.body).appendChild(s);var ap=document.getElementById('app');if(ap)ap.classList.add('sheet-open');s.onTapM(function(e){if(e.target===s)closeSheet();});var cb=document.getElementById('sheetCloseBtn');if(cb)cb.onTapM(closeSheet);}
 function closeSheet(){var s=$('genOv');if(s)s.remove();syncSheetOpen();}
 function syncSheetOpen(){var ap=document.getElementById('app');if(!ap)return;var scanOpen=$('scanOv')&&!$('scanOv').hidden;var genOpen=!!$('genOv');if(scanOpen||genOpen)ap.classList.add('sheet-open');else ap.classList.remove('sheet-open');}
 
@@ -613,8 +622,8 @@ function openStats(kind){var html='';
 
 /* ---------- BUY ---------- */
 function prefRate(){return rate.usd||0;}
-function renderTypeChips(){var w=$('bTypes');if(!w)return;if(buyWatt==null&&config.types.length)buyWatt=config.types[0];w.innerHTML=config.types.map(function(t){var on=buyWatt==t;return '<button type="button" class="code-chip" data-w="'+t+'" style="cursor:pointer;font-size:13px;padding:8px 12px;'+(on?'outline:2px solid var(--accent);background:var(--accent);color:#231506;':'')+'">'+t+' Вт</button>';}).join('');w.querySelectorAll('[data-w]').forEach(function(b){b.addEventListener('click',function(){buyWatt=+b.getAttribute('data-w');renderTypeChips();});});}
-$('bModeSeg').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){buyMode=bt.getAttribute('data-mode');$('bModeSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('bPalletField').hidden=buyMode!=='pallet';renderBuyPreview();});});
+function renderTypeChips(){var w=$('bTypes');if(!w)return;if(buyWatt==null&&config.types.length)buyWatt=config.types[0];w.innerHTML=config.types.map(function(t){var on=buyWatt==t;return '<button type="button" class="code-chip" data-w="'+t+'" style="cursor:pointer;font-size:13px;padding:8px 12px;'+(on?'outline:2px solid var(--accent);background:var(--accent);color:#231506;':'')+'">'+t+' Вт</button>';}).join('');w.querySelectorAll('[data-w]').forEach(function(b){b.onTapM(function(){buyWatt=+b.getAttribute('data-w');renderTypeChips();});});}
+$('bModeSeg').querySelectorAll('button').forEach(function(bt){bt.onTapM(function(){buyMode=bt.getAttribute('data-mode');$('bModeSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('bPalletField').hidden=buyMode!=='pallet';renderBuyPreview();});});
 var buyDefaultsApplied=false;
 function applyBuyDefaults(){
   var lb={};try{lb=JSON.parse(localStorage.getItem('op_lastbuy')||'{}');}catch(e){}
@@ -629,24 +638,24 @@ function applyBuyDefaults(){
   renderTypeChips();renderBuyPreview();
 }
 function saveLastBuy(price,rt,watt,mode){try{localStorage.setItem('op_lastbuy',JSON.stringify({price:price,rate:rt,watt:watt,mode:mode}));}catch(e){}}
-$('bPalletScan').addEventListener('click',function(){openScanner('palletcode');});
+$('bPalletScan').onTapM(function(){openScanner('palletcode');});
 /* types editor */
-function renderTypesEditor(){var w=$('typesList');if(!w)return;w.innerHTML=config.types.map(function(t){return '<span class="code-chip mono">'+t+' Вт<button type="button" data-t="'+t+'">×</button></span>';}).join('');}
-(function(){var w=$('typesList');if(w)w.addEventListener('click',function(e){var b=e.target.closest?e.target.closest('button[data-t]'):null;if(!b)return;var t=+b.getAttribute('data-t');config.types=config.types.filter(function(x){return x!=t;});saveTypes();renderTypesEditor();renderTypeChips();renderSpecList();});})();
-$('typeAdd').addEventListener('click',function(){var v=num($('typeNew').value);if(v<=0){toast('Впиши число','warn');return;}if(config.types.indexOf(v)<0)config.types.push(v);config.types.sort(function(a,b){return a-b;});$('typeNew').value='';saveTypes();renderTypesEditor();renderTypeChips();toast('Додано','ok');});
+function renderTypesEditor(){var w=$('typesList');if(!w)return;w.innerHTML=config.types.map(function(t){return '<span class="code-chip mono">'+t+' Вт<button type="button" data-t="'+t+'">×</button></span>';}).join('');
+  w.querySelectorAll('button[data-t]').forEach(function(b){onTap(b,function(){var t=+b.getAttribute('data-t');config.types=config.types.filter(function(x){return x!=t;});saveTypes();renderTypesEditor();renderTypeChips();renderSpecList();});});}
+onTap($('typeAdd'),function(){var v=num($('typeNew').value);if(v<=0){toast('Впиши число','warn');return;}if(config.types.indexOf(v)<0)config.types.push(v);config.types.sort(function(a,b){return a-b;});$('typeNew').value='';saveTypes();renderTypesEditor();renderTypeChips();renderSpecList();toast('Додано','ok');});
 function saveTypes(){try{localStorage.setItem('op_types',JSON.stringify(config.types));}catch(e){}sb.from('settings').upsert({user_id:uid,types:config.types}).catch(function(){});}
-$('bScan').addEventListener('click',function(){openScanner('buy');});
-$('bBulkAdd').addEventListener('click',function(){var arr=parseCodes($('bBulk').value);if(!arr.length){toast('Порожньо');return;}var r=addPendingCodes(arr);$('bBulk').value='';renderBuyCodes();renderBuyPreview();toast('Додано '+r.added+(r.dup?(' · '+r.dup+' повтор'):''),'ok');});
-$('bPaste').addEventListener('click',async function(){try{var t=await navigator.clipboard.readText();if(!t){toast('Буфер порожній','warn');return;}var arr=parseCodes(t);if(!arr.length){toast('У буфері нема номерів','warn');return;}var r=addPendingCodes(arr);renderBuyCodes();renderBuyPreview();toast('Додано '+r.added+(r.dup?(' · '+r.dup+' повтор'):''),'ok');}catch(e){$('bBulk').focus();toast('Встав у поле вручну і тисни «Додати список»','warn');}});
+$('bScan').onTapM(function(){openScanner('buy');});
+$('bBulkAdd').onTapM(function(){var arr=parseCodes($('bBulk').value);if(!arr.length){toast('Порожньо');return;}var r=addPendingCodes(arr);$('bBulk').value='';renderBuyCodes();renderBuyPreview();toast('Додано '+r.added+(r.dup?(' · '+r.dup+' повтор'):''),'ok');});
+$('bPaste').onTapM(async function(){try{var t=await navigator.clipboard.readText();if(!t){toast('Буфер порожній','warn');return;}var arr=parseCodes(t);if(!arr.length){toast('У буфері нема номерів','warn');return;}var r=addPendingCodes(arr);renderBuyCodes();renderBuyPreview();toast('Додано '+r.added+(r.dup?(' · '+r.dup+' повтор'):''),'ok');}catch(e){$('bBulk').focus();toast('Встав у поле вручну і тисни «Додати список»','warn');}});
 ['bPrice','bRate','bDelivery'].forEach(function(id){$(id).addEventListener('input',renderBuyPreview);});
-function renderBuyCodes(){var w=$('bCodes');w.innerHTML=pendingBuy.map(function(c){return '<span class="code-chip mono">'+shortCode(c)+'<button data-c="'+c+'">×</button></span>';}).join('');w.querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){pendingBuy=pendingBuy.filter(function(x){return x!==bt.getAttribute('data-c');});renderBuyCodes();renderBuyPreview();});});$('bCount').textContent=pendingBuy.length?('· '+pendingBuy.length+' шт'):'';}
+function renderBuyCodes(){var w=$('bCodes');w.innerHTML=pendingBuy.map(function(c){return '<span class="code-chip mono">'+shortCode(c)+'<button data-c="'+c+'">×</button></span>';}).join('');w.querySelectorAll('button').forEach(function(bt){bt.onTapM(function(){pendingBuy=pendingBuy.filter(function(x){return x!==bt.getAttribute('data-c');});renderBuyCodes();renderBuyPreview();});});$('bCount').textContent=pendingBuy.length?('· '+pendingBuy.length+' шт'):'';}
 function renderBuyPreview(){var price=num($('bPrice').value),rt=num($('bRate').value),del=num($('bDelivery').value),qty=pendingBuy.length;var ok=price>0&&qty>0;$('bPreview').hidden=!ok;
   var b=$('bSave');
   if(qty<=0){b.disabled=true;b.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Додай коди панелей';}
   else if(price<=0){b.disabled=true;b.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Впиши ціну за штуку';}
   else{b.disabled=false;b.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Зберегти партію ('+qty+' шт)';}
   if(!ok)return;var delUsd=rt>0?del/rt:0,perDel=delUsd/qty,cost=price+perDel;$('pvQty').textContent=qty+' шт';$('pvPrice').textContent=fmtUsd(price);$('pvDelivery').textContent=fmtUsd(perDel)+(rt>0?'':' (курс?)');$('pvCost').textContent=fmtUsd(cost);$('pvTotal').textContent=fmtUsd(cost*qty);}
-$('bSave').addEventListener('click',async function(){
+$('bSave').onTapM(async function(){
   var price=num($('bPrice').value),rt=num($('bRate').value)||prefRate(),del=num($('bDelivery').value),qty=pendingBuy.length;
   if(price<=0||qty<=0)return;
   var palletCode=(buyMode==='pallet')?($('bPalletCode').value||'').trim():'';
@@ -668,8 +677,8 @@ $('bSave').addEventListener('click',async function(){
 function resetBSave(){$('bSave').disabled=false;renderBuyPreview();}
 
 /* ---------- SELL ---------- */
-$('sScan').addEventListener('click',function(){openScanner('sell');});
-$('sProceed').addEventListener('click',openSellForm);
+$('sScan').onTapM(function(){openScanner('sell');});
+$('sProceed').onTapM(openSellForm);
 function panelByCode(code){return panels.find(function(x){return x.code===code;});}
 function renderSellStock(){
   var st=stockPanels();var list=$('sellStockList');
@@ -684,8 +693,8 @@ function renderSellStock(){
   var single=st.slice().sort(function(a,b){return (b.purchaseDate||'')<(a.purchaseDate||'')?-1:1;});
   html+=single.map(function(p){var inb=sellBasket.indexOf(p.code)>=0;return '<button class="row" data-code="'+p.code+'"><div><div class="code mono">'+shortCode(p.code)+'</div><div class="meta">соб. '+fmtUsd(p.costUsd)+(p.watt?' · '+p.watt+'Вт':'')+' · '+dstr(p.purchaseDate)+'</div></div><div class="right"><span class="chip '+(inb?'sold':'stock')+'">'+(inb?'✓ у списку':'додати +')+'</span></div></button>';}).join('');
   list.innerHTML=html;
-  list.querySelectorAll('.row[data-code]').forEach(function(r){r.addEventListener('click',function(){addToSell(r.getAttribute('data-code'));});});
-  list.querySelectorAll('.row[data-pal]').forEach(function(r){r.addEventListener('click',function(){var k=r.getAttribute('data-pal');var arr=stockPanels().filter(function(p){return p.palletCode===k;});var add=0;arr.forEach(function(p){if(sellBasket.indexOf(p.code)<0){sellBasket.push(p.code);add++;}});renderSellStock();toast('Палета: +'+add+' у кошик','ok');});});
+  list.querySelectorAll('.row[data-code]').forEach(function(r){r.onTapM(function(){addToSell(r.getAttribute('data-code'));});});
+  list.querySelectorAll('.row[data-pal]').forEach(function(r){r.onTapM(function(){var k=r.getAttribute('data-pal');var arr=stockPanels().filter(function(p){return p.palletCode===k;});var add=0;arr.forEach(function(p){if(sellBasket.indexOf(p.code)<0){sellBasket.push(p.code);add++;}});renderSellStock();toast('Палета: +'+add+' у кошик','ok');});});
   updateProceed();
 }
 function selectSellPanel(code){var p=panelByCode(code);if(!p){toast('Панель не знайдено','warn');return;}if(p.status==='sold'){toast('Ця панель вже продана','warn');return;}if(sellBasket.indexOf(code)<0)sellBasket.push(code);openSellForm();}
@@ -709,11 +718,11 @@ function renderSellForm(){
     '<div class="field"><label>Покупець <span style="color:var(--faint);font-weight:500">(необов\'язково)</span></label><input class="inp" id="sBuyer" placeholder="ім\'я або телефон"></div>'+
     '<div id="sResult"></div><button class="btn good" id="sConfirm" style="margin-top:8px" disabled><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Продати '+n+' шт</button>';
   sellMode='usd';
-  $('sBack').addEventListener('click',function(){$('sellForm').hidden=true;$('sellPick').hidden=false;renderSellStock();});
-  $('sMore').addEventListener('click',function(){openScanner('sell');});
-  $('sellForm').querySelectorAll('[data-rm]').forEach(function(b){b.addEventListener('click',function(){var c=b.getAttribute('data-rm');sellBasket=sellBasket.filter(function(x){return x!==c;});renderSellForm();});});
-  $('sSeg').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){sellMode=bt.getAttribute('data-m');$('sSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('sSuffix').textContent=sellMode==='usd'?'$':'₴';calcSell();});});
-  $('sAmount').addEventListener('input',calcSell);$('sConfirm').addEventListener('click',doSell);
+  $('sBack').onTapM(function(){$('sellForm').hidden=true;$('sellPick').hidden=false;renderSellStock();});
+  $('sMore').onTapM(function(){openScanner('sell');});
+  $('sellForm').querySelectorAll('[data-rm]').forEach(function(b){b.onTapM(function(){var c=b.getAttribute('data-rm');sellBasket=sellBasket.filter(function(x){return x!==c;});renderSellForm();});});
+  $('sSeg').querySelectorAll('button').forEach(function(bt){bt.onTapM(function(){sellMode=bt.getAttribute('data-m');$('sSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('sSuffix').textContent=sellMode==='usd'?'$':'₴';calcSell();});});
+  $('sAmount').addEventListener('input',calcSell);$('sConfirm').onTapM(doSell);
   $('sAmount').value=target.toFixed(2);calcSell();
 }
 function calcSell(){
@@ -745,14 +754,14 @@ async function doSell(){
 }
 
 /* ---------- RATE / SETTINGS ---------- */
-$('rSave').addEventListener('click',async function(){var u=num($('rUsd').value),e=num($('rEur').value);if(u<=0){toast('Впиши курс долара','warn');return;}var r=await sb.from('settings').upsert({user_id:uid,rate_usd:u,rate_eur:e,rate_updated:today()});if(r.error){toast('Помилка','warn');return;}rate.usd=u;rate.eur=e;rate.updatedAt=today();renderHeader();renderHome();renderRate();toast('Курс оновлено','ok');});
-$('rMarginSave').addEventListener('click',async function(){var m=num($('rMargin').value)||0;var r=await sb.from('settings').upsert({user_id:uid,margin:m});if(r.error){toast('Помилка','warn');return;}config.margin=m;toast('Націнку збережено','ok');});
+onTap($('rSave'),async function(){var u=num($('rUsd').value),e=num($('rEur').value);if(u<=0){toast('Впиши курс долара','warn');return;}var r=await sb.from('settings').upsert({user_id:uid,rate_usd:u,rate_eur:e,rate_updated:today()});if(r.error){toast('Помилка','warn');return;}rate.usd=u;rate.eur=e;rate.updatedAt=today();renderHeader();renderHome();renderRate();toast('Курс оновлено','ok');});
+onTap($('rMarginSave'),async function(){var m=num($('rMargin').value)||0;var r=await sb.from('settings').upsert({user_id:uid,margin:m});if(r.error){toast('Помилка','warn');return;}config.margin=m;toast('Націнку збережено','ok');});
 function renderRate(){if(document.activeElement!==$('rUsd'))$('rUsd').value=rate.usd?rate.usd:'';if(document.activeElement!==$('rEur'))$('rEur').value=rate.eur?rate.eur:'';if(document.activeElement!==$('rMargin'))$('rMargin').value=config.margin||'';$('rUpdated').textContent=rate.updatedAt?('Оновлено '+new Date(rate.updatedAt).toLocaleString('uk-UA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})):'Ще не встановлено';}
-$('rLogout').addEventListener('click',async function(){if(!confirm('Вийти з акаунта на цьому пристрої?'))return;await sb.auth.signOut();location.reload();});
+onTap($('rLogout'),async function(){if(!confirm('Вийти з акаунта на цьому пристрої?'))return;await sb.auth.signOut();location.reload();});
 
 /* ---------- ADS ---------- */
-$('adSeg').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){adMode=bt.getAttribute('data-m');$('adSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('adSuffix').textContent=adMode==='usd'?'$':'₴';});});
-$('adAdd').addEventListener('click',async function(){
+$('adSeg').querySelectorAll('button').forEach(function(bt){onTap(bt,function(){adMode=bt.getAttribute('data-m');$('adSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('adSuffix').textContent=adMode==='usd'?'$':'₴';});});
+onTap($('adAdd'),async function(){
   var amt=num($('adAmount').value);if(amt<=0){toast('Впиши суму','warn');return;}
   var rt=prefRate();if(adMode==='uah'&&!rt){toast('Нема курсу для переводу в $','warn');return;}
   var usd=adMode==='usd'?amt:amt/rt;
@@ -767,11 +776,11 @@ function renderAds(){
   var arr=ads.slice().sort(function(a,b){return (b.date||'')<(a.date||'')?-1:1;});var list=$('adList');
   if(!arr.length){list.innerHTML='';return;}
   list.innerHTML=arr.map(function(x){var amtStr=x.currency==='uah'?fmtUah(x.amount):fmtUsd(x.amount);return '<button class="row" data-ad="'+x.id+'"><div><div class="code">'+(x.note||'Реклама')+'</div><div class="meta">'+dstr(x.date)+' · '+amtStr+'</div></div><div class="right"><div class="amt neg">−'+fmtUsd(x.amountUsd)+'</div><div style="font-size:11px;color:var(--faint);margin-top:2px">видалити ✕</div></div></button>';}).join('');
-  list.querySelectorAll('.row[data-ad]').forEach(function(r){r.addEventListener('click',async function(){if(!confirm('Видалити цю витрату?'))return;var res=await sb.from('ad_expenses').delete().eq('id',r.getAttribute('data-ad'));if(res.error){toast('Помилка','warn');return;}toast('Видалено');loadAds();});});
+  list.querySelectorAll('.row[data-ad]').forEach(function(r){r.onTapM(async function(){if(!confirm('Видалити цю витрату?'))return;var res=await sb.from('ad_expenses').delete().eq('id',r.getAttribute('data-ad'));if(res.error){toast('Помилка','warn');return;}toast('Видалено');loadAds();});});
 }
 
 /* export */
-$('rExport').addEventListener('click',function(){
+onTap($('rExport'),function(){
   var rows=[['Код','Статус','Дата закупки','Ціна закупки $','Доставка/шт $','Собівартість $','Курс закупки','Дата продажу','Ціна продажу $','Валюта','Сума','Прибуток $','Покупець']];
   panels.forEach(function(p){var s=p.sale||{};rows.push([p.code,p.status==='sold'?'продано':'на складі',dstr(p.purchaseDate),(p.priceUsd||0).toFixed(2),(p.deliveryShareUsd||0).toFixed(2),(p.costUsd||0).toFixed(2),(p.rateAtPurchase||0).toFixed(2),p.status==='sold'?dstr(s.date):'',p.status==='sold'?(s.priceUsd||0).toFixed(2):'',s.currency||'',s.amount!=null?s.amount:'',p.status==='sold'?(s.profitUsd||0).toFixed(2):'',s.buyer||'']);});
   var csv='﻿'+rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
@@ -788,18 +797,13 @@ function renderSpecEditor(){var host=$('specEditorInline');if(!host)return;var c
   var fields=specFields.map(function(f){return '<div class="field" style="margin-bottom:10px"><label>'+f[1]+'</label><input class="inp" id="sp_'+f[0]+'" value="'+(s[f[0]]!=null?String(s[f[0]]).replace(/"/g,'&quot;'):'')+'"></div>';}).join('');
   host.hidden=false;
   host.innerHTML='<div class="card" style="padding:14px;background:var(--surface-2)"><div class="eyebrow" style="margin-bottom:8px">Обери тип і впиши дані</div><div class="codes-wrap" id="spTypes" style="margin-bottom:14px">'+chips+'</div>'+fields+'<div class="spec-actions"><button class="btn good" type="button" data-act="save">Зберегти '+cur+' Вт</button><button class="btn ghost" type="button" data-act="done">Готово</button></div></div>';
+  host.querySelectorAll('#spTypes button[data-w]').forEach(function(b){onTap(b,function(){grabSpec();saveSpecs();specCur=+b.getAttribute('data-w');renderSpecEditor();});});
+  onTap(host.querySelector('button[data-act="save"]'),function(){grabSpec();saveSpecs();renderSpecList();toast('Збережено ✓','ok');});
+  onTap(host.querySelector('button[data-act="done"]'),function(){grabSpec();saveSpecs();renderSpecList();host.hidden=true;host.innerHTML='';});
 }
 function grabSpec(){if(!specCur)return;var o={};specFields.forEach(function(f){var el=$('sp_'+f[0]);if(el){var v=el.value.trim();if(v)o[f[0]]=v;}});config.specs[specCur]=o;}
 function saveSpecs(){try{localStorage.setItem('op_specs',JSON.stringify(config.specs));}catch(e){}sb.from('settings').upsert({user_id:uid,specs:config.specs}).catch(function(){});}
-(function(){var host=$('specEditorInline');if(!host)return;host.addEventListener('click',function(e){
-  var chip=e.target.closest?e.target.closest('button[data-w]'):null;
-  if(chip){grabSpec();saveSpecs();specCur=+chip.getAttribute('data-w');renderSpecEditor();return;}
-  var act=e.target.closest?e.target.closest('button[data-act]'):null;
-  if(!act)return;var a=act.getAttribute('data-act');
-  if(a==='save'){grabSpec();saveSpecs();renderSpecList();toast('Збережено ✓','ok');}
-  else if(a==='done'){grabSpec();saveSpecs();renderSpecList();host.hidden=true;host.innerHTML='';}
-});})();
-$('specEditBtn').addEventListener('click',function(){openSpecEditor();});
+onTap($('specEditBtn'),function(){openSpecEditor();});
 
 /* ---------- REPORTS (звіти) ---------- */
 function currentMonth(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
@@ -845,21 +849,21 @@ function openReport(){
     '<div style="display:flex;gap:10px;margin-top:14px"><button class="btn dark" id="rpPrint" type="button" style="flex:1"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg> Друк / PDF</button><button class="btn ghost" id="rpShare" type="button" style="flex:1">Поділитись</button></div>');
   function draw(){var res=computeReport(rpScope,{month:($('rpMonth')?$('rpMonth').value:''),pallet:($('rpPallet')?($('rpPallet').value||'').trim():''),type:rpType});$('rpPreview').innerHTML=res.previewHtml;$('printArea').innerHTML=res.printHtml;}
   $('rpTypes').innerHTML=(config.types||[]).map(function(t){return '<button type="button" class="code-chip" data-w="'+t+'" style="cursor:pointer;'+(t===rpType?'outline:2px solid var(--accent);':'')+'">'+t+' Вт</button>';}).join('');
-  $('rpTypes').querySelectorAll('[data-w]').forEach(function(b){b.addEventListener('click',function(){rpType=+b.getAttribute('data-w');$('rpTypes').querySelectorAll('[data-w]').forEach(function(x){x.style.outline=(+x.getAttribute('data-w')===rpType)?'2px solid var(--accent)':'';});draw();});});
-  $('rpSeg').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){rpScope=bt.getAttribute('data-s');$('rpSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('rpMonthF').hidden=rpScope!=='month';$('rpPalletF').hidden=rpScope!=='pallet';$('rpTypeF').hidden=rpScope!=='type';draw();});});
+  $('rpTypes').querySelectorAll('[data-w]').forEach(function(b){b.onTapM(function(){rpType=+b.getAttribute('data-w');$('rpTypes').querySelectorAll('[data-w]').forEach(function(x){x.style.outline=(+x.getAttribute('data-w')===rpType)?'2px solid var(--accent)':'';});draw();});});
+  $('rpSeg').querySelectorAll('button').forEach(function(bt){bt.onTapM(function(){rpScope=bt.getAttribute('data-s');$('rpSeg').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});bt.classList.add('on');$('rpMonthF').hidden=rpScope!=='month';$('rpPalletF').hidden=rpScope!=='pallet';$('rpTypeF').hidden=rpScope!=='type';draw();});});
   $('rpMonth').addEventListener('input',draw);$('rpPallet').addEventListener('input',draw);
-  $('rpPrint').addEventListener('click',function(){draw();setTimeout(function(){window.print();},60);});
-  $('rpShare').addEventListener('click',function(){if(navigator.share){navigator.share({title:'Звіт',text:_rpText}).catch(function(){});}else{try{navigator.clipboard.writeText(_rpText);toast('Скопійовано','ok');}catch(e){toast('Не вдалось','warn');}}});
+  $('rpPrint').onTapM(function(){draw();setTimeout(function(){window.print();},60);});
+  $('rpShare').onTapM(function(){if(navigator.share){navigator.share({title:'Звіт',text:_rpText}).catch(function(){});}else{try{navigator.clipboard.writeText(_rpText);toast('Скопійовано','ok');}catch(e){toast('Не вдалось','warn');}}});
   draw();
 }
-$('reportBtn').addEventListener('click',openReport);
+onTap($('reportBtn'),openReport);
 
 /* ---------- SCANNER ---------- */
 var scanFormats=null;
 function supportedFormats(){if(scanFormats!==null)return scanFormats;try{var F=window.Html5QrcodeSupportedFormats;scanFormats=[F.CODE_128,F.CODE_39,F.CODE_93,F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.ITF,F.CODABAR,F.QR_CODE];}catch(e){scanFormats=undefined;}return scanFormats;}
 function curList(){return scanCtx==='sell'?sellBasket:(scanCtx==='buy'?pendingBuy:[]);}
 function openScanner(ctx){scanCtx=ctx;$('scanTitle').textContent=ctx==='buy'?'Сканувати партію':(ctx==='palletcode'?'Код палети':'Сканувати панелі');$('scanSub').textContent=ctx==='palletcode'?'Наведи на штрих-код палети':'Наводь на кожну панель — коди збираються у список';$('scanOv').hidden=false;syncSheetOpen();$('scanStatus').innerHTML='';$('manualCode').value='';updateScanCodes();updateScanDone();startCamera();}
-function updateScanCodes(){var list=curList();$('scanCodes').innerHTML=list.map(function(c){return '<span class="code-chip mono">'+shortCode(c)+'<button data-c="'+c+'">×</button></span>';}).join('');$('scanCodes').querySelectorAll('button').forEach(function(bt){bt.addEventListener('click',function(){var c=bt.getAttribute('data-c');if(scanCtx==='sell')sellBasket=sellBasket.filter(function(x){return x!==c;});else pendingBuy=pendingBuy.filter(function(x){return x!==c;});updateScanCodes();updateScanDone();});});}
+function updateScanCodes(){var list=curList();$('scanCodes').innerHTML=list.map(function(c){return '<span class="code-chip mono">'+shortCode(c)+'<button data-c="'+c+'">×</button></span>';}).join('');$('scanCodes').querySelectorAll('button').forEach(function(bt){bt.onTapM(function(){var c=bt.getAttribute('data-c');if(scanCtx==='sell')sellBasket=sellBasket.filter(function(x){return x!==c;});else pendingBuy=pendingBuy.filter(function(x){return x!==c;});updateScanCodes();updateScanDone();});});}
 function updateScanDone(){var n=curList().length;$('scanDone').hidden=n===0;$('scanDoneN').textContent=n?('· '+n):'';}
 function handleScan(code){code=String(code).trim();if(!code)return;
   if(scanCtx==='palletcode'){if($('bPalletCode'))$('bPalletCode').value=code;buzz();closeScanner();toast('Код палети: '+shortCode(code),'ok');return;}
@@ -879,18 +883,18 @@ function scanFromPhoto(file){if(!file)return;$('scanStatus').innerHTML='<div cla
 function cameraFail(msg){scanRunning=false;$('reader').innerHTML='<div style="padding:26px 16px;text-align:center;color:var(--muted);font-size:13px;font-weight:600">📷 '+msg+'</div>';$('reader').style.minHeight='auto';$('reader').style.background='var(--surface-2)';setTimeout(function(){$('manualCode').focus();},200);}
 function stopCamera(cb){if(qr&&scanRunning){qr.stop().then(function(){try{qr.clear();}catch(e){}scanRunning=false;qr=null;if(cb)cb();}).catch(function(){scanRunning=false;qr=null;if(cb)cb();});}else{qr=null;if(cb)cb();}}
 function closeScanner(){$('scanOv').hidden=true;syncSheetOpen();$('reader').style.minHeight='230px';$('reader').style.background='#000';stopCamera();}
-$('scanClose').addEventListener('click',finishScan);
-$('scanX').addEventListener('click',finishScan);
-$('scanDone').addEventListener('click',finishScan);
-$('scanPhotoBtn').addEventListener('click',function(){$('scanPhoto').click();});
+$('scanClose').onTapM(finishScan);
+$('scanX').onTapM(finishScan);
+$('scanDone').onTapM(finishScan);
+$('scanPhotoBtn').onTapM(function(){$('scanPhoto').click();});
 $('scanPhoto').addEventListener('change',function(){var f=this.files&&this.files[0];this.value='';if(f)scanFromPhoto(f);});
-$('manualAdd').addEventListener('click',function(){var v=$('manualCode').value.trim();if(!v){$('manualCode').focus();return;}handleScan(v);$('manualCode').value='';$('manualCode').focus();});
+$('manualAdd').onTapM(function(){var v=$('manualCode').value.trim();if(!v){$('manualCode').focus();return;}handleScan(v);$('manualCode').value='';$('manualCode').focus();});
 $('manualCode').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('manualAdd').click();}});
 
 /* ---------- AUTH ---------- */
 function showAuth(){$('app').hidden=true;$('auth').hidden=false;$('authEmail').focus();}
-$('authToggle').addEventListener('click',function(e){if(e.target.tagName!=='B')return;authMode=authMode==='signin'?'signup':'signin';$('authTitle').textContent=authMode==='signin'?'Вхід в облік':'Реєстрація';$('authBtn').textContent=authMode==='signin'?'Увійти':'Створити акаунт';$('authToggle').innerHTML=authMode==='signin'?'Немає акаунта? <b>Зареєструватись</b>':'Вже є акаунт? <b>Увійти</b>';$('authErr').textContent='';});
-$('authBtn').addEventListener('click',doAuth);
+$('authToggle').onTapM(function(e){if(e.target.tagName!=='B')return;authMode=authMode==='signin'?'signup':'signin';$('authTitle').textContent=authMode==='signin'?'Вхід в облік':'Реєстрація';$('authBtn').textContent=authMode==='signin'?'Увійти':'Створити акаунт';$('authToggle').innerHTML=authMode==='signin'?'Немає акаунта? <b>Зареєструватись</b>':'Вже є акаунт? <b>Увійти</b>';$('authErr').textContent='';});
+$('authBtn').onTapM(doAuth);
 $('authPass').addEventListener('keydown',function(e){if(e.key==='Enter')doAuth();});
 async function doAuth(){var email=($('authEmail').value||'').trim();var pass=$('authPass').value||'';$('authErr').textContent='';
   if(!email||!pass){$('authErr').textContent='Введи пошту і пароль';return;}
