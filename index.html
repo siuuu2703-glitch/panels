@@ -153,6 +153,18 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
 .sheet h2{font-size:17px;font-weight:800;margin-bottom:3px}
 .sheet .sub{font-size:12.5px;color:var(--muted);margin-bottom:14px}
 
+.screen-title{font-size:21px;font-weight:800;letter-spacing:-.02em;margin:2px 2px 4px}
+.screen-lead{font-size:13px;color:var(--muted);margin:0 2px 16px;font-weight:500}
+.setcard{padding:16px 16px 18px;margin-bottom:14px}
+.setcard-hd{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.setcard-ic{width:40px;height:40px;flex:0 0 auto;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;font-size:20px}
+.setcard-tt{font-size:15.5px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+.setcard-ss{font-size:11.5px;color:var(--faint);font-weight:500;margin-top:2px}
+.setnote{font-size:11.5px;color:var(--faint);text-align:center;margin-top:10px}
+.setcard .btn{margin-top:2px}
+.setcard .hint{font-size:12px;color:var(--faint);font-weight:500;line-height:1.4}
+.spec-actions{display:flex;gap:8px;margin-top:12px}
+.spec-actions .btn{margin-top:0}
 .auth{position:fixed;inset:0;z-index:80;background:var(--brand);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 24px 24px;text-align:center;color:#fff}
 .auth[hidden]{display:none}
 .auth .logo{width:66px;height:66px;border-radius:20px;background:linear-gradient(150deg,var(--accent),#c9761a);display:grid;place-items:center;color:#231506;font-weight:800;font-size:30px;margin-bottom:18px;box-shadow:0 10px 30px -8px rgba(232,145,42,.6)}
@@ -332,10 +344,62 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
 
     <!-- KURS / SETTINGS -->
     <section class="screen" id="s-rate" hidden>
-      <h2 style="font-size:18px;margin-bottom:12px">Ще</h2>
+      <h2 class="screen-title">Налаштування</h2>
+      <p class="screen-lead">Курс, націнка, типи панелей і довідник — усе тут.</p>
 
-      <div class="card" style="padding:16px;margin-bottom:16px">
-        <div class="eyebrow" style="margin-bottom:12px">Реклама — окремі витрати</div>
+      <!-- КУРС -->
+      <div class="card setcard">
+        <div class="setcard-hd">
+          <div class="setcard-ic">💱</div>
+          <div><div class="setcard-tt">Курс валют</div><div class="setcard-ss">Підставляється в закупівлю і продаж</div></div>
+        </div>
+        <div class="row2">
+          <div class="field" style="margin:0"><label>Долар</label><div class="inp-group"><input class="inp has-suffix num" id="rUsd" inputmode="decimal" placeholder="0.00"><span class="suffix">₴</span></div></div>
+          <div class="field" style="margin:0"><label>Євро</label><div class="inp-group"><input class="inp has-suffix num" id="rEur" inputmode="decimal" placeholder="0.00"><span class="suffix">₴</span></div></div>
+        </div>
+        <div class="hint" style="margin:10px 0 14px">Дивись курс на kurs.volyn.ua і впиши сюди.</div>
+        <button class="btn dark" id="rSave"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Оновити курс</button>
+        <div class="setnote" id="rUpdated"></div>
+      </div>
+
+      <!-- НАЦІНКА -->
+      <div class="card setcard">
+        <div class="setcard-hd">
+          <div class="setcard-ic">📈</div>
+          <div><div class="setcard-tt">Бажана націнка</div><div class="setcard-ss">Підкаже рекомендовану ціну продажу</div></div>
+        </div>
+        <div class="field" style="margin:0 0 12px"><div class="inp-group"><input class="inp has-suffix num" id="rMargin" inputmode="decimal" placeholder="15"><span class="suffix">%</span></div></div>
+        <button class="btn ghost" id="rMarginSave">Зберегти націнку</button>
+      </div>
+
+      <!-- ТИПИ -->
+      <div class="card setcard">
+        <div class="setcard-hd">
+          <div class="setcard-ic">⚡</div>
+          <div><div class="setcard-tt">Типи панелей</div><div class="setcard-ss">Потужність у ватах (Вт)</div></div>
+        </div>
+        <div class="codes-wrap" id="typesList"></div>
+        <div style="display:flex;gap:8px;margin-top:14px"><input class="inp num" id="typeNew" inputmode="numeric" placeholder="напр. 550" style="flex:1"><button class="btn ghost" id="typeAdd" style="width:auto;padding:0 20px">Додати</button></div>
+        <div class="hint" style="margin-top:10px">З'являться при закупівлі. Щоб видалити тип — тапни ✕ на чипі.</div>
+      </div>
+
+      <!-- ДОВІДНИК -->
+      <div class="card setcard">
+        <div class="setcard-hd">
+          <div class="setcard-ic">📋</div>
+          <div><div class="setcard-tt">Довідник панелей</div><div class="setcard-ss">Вага, розміри, напруга по типу</div></div>
+        </div>
+        <div class="list" id="specList"></div>
+        <button class="btn ghost" id="specEditBtn" style="margin-top:12px">✏️ Редагувати параметри</button>
+        <div id="specEditorInline" style="margin-top:14px" hidden></div>
+      </div>
+
+      <!-- РЕКЛАМА -->
+      <div class="card setcard">
+        <div class="setcard-hd">
+          <div class="setcard-ic">📣</div>
+          <div><div class="setcard-tt">Реклама</div><div class="setcard-ss">Окремі витрати, не в собівартості панелей</div></div>
+        </div>
         <div class="row2">
           <div class="field" style="margin:0"><label>Сума</label><div class="inp-group"><input class="inp has-suffix num" id="adAmount" inputmode="decimal" placeholder="0"><span class="suffix" id="adSuffix">$</span></div></div>
           <div class="field" style="margin:0"><label>Дата</label><input class="inp" id="adDate" type="date"></div>
@@ -343,56 +407,38 @@ nav.tabs button .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
         <div class="seg usd" id="adSeg" style="margin:10px 0"><button data-m="usd" class="on">$ долар</button><button data-m="uah">₴ гривня</button></div>
         <input class="inp" id="adNote" placeholder="за що (Instagram, OLX, роздача…)" style="margin-bottom:10px">
         <button class="btn dark" id="adAdd"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Додати витрату</button>
-        <div class="detail-line" style="margin-top:14px"><span class="k">Всього на рекламу</span><span class="v neg" id="adTotal">$0</span></div>
+        <div class="detail-line" style="display:flex;justify-content:space-between;margin-top:14px;font-size:13px"><span class="k" style="color:var(--muted)">Всього на рекламу</span><span class="v neg" id="adTotal" style="font-weight:800">$0</span></div>
         <div class="list" id="adList" style="margin-top:10px"></div>
-        <div class="hint" style="margin-top:8px">Реклама рахується окремо і НЕ додається в собівартість панелей. На «Огляді» видно: прибуток − реклама = чистими.</div>
       </div>
 
-      <div class="card" style="padding:16px;margin-bottom:16px">
-        <div class="eyebrow" style="margin-bottom:12px">Поточний курс</div>
-        <div class="row2">
-          <div class="field" style="margin:0"><label>Долар</label><div class="inp-group"><input class="inp has-suffix num" id="rUsd" inputmode="decimal" placeholder="0.00"><span class="suffix">₴</span></div></div>
-          <div class="field" style="margin:0"><label>Євро</label><div class="inp-group"><input class="inp has-suffix num" id="rEur" inputmode="decimal" placeholder="0.00"><span class="suffix">₴</span></div></div>
+      <!-- ЗВІТИ -->
+      <div class="card setcard">
+        <div class="setcard-hd">
+          <div class="setcard-ic">🧾</div>
+          <div><div class="setcard-tt">Звіти</div><div class="setcard-ss">За період, палетою чи типом — друк, PDF, поділитись</div></div>
         </div>
-        <div class="hint" style="margin:8px 0 14px">Дивись на kurs.volyn.ua і вписуй сюди. Курс запам'ятається й підставлятиметься в закупівлі та продаж.</div>
-        <button class="btn dark" id="rSave"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Оновити курс</button>
-        <div style="font-size:11.5px;color:var(--faint);text-align:center;margin-top:10px" id="rUpdated"></div>
-      </div>
-      <div class="card" style="padding:16px;margin-bottom:16px">
-        <div class="eyebrow" style="margin-bottom:10px">Бажана націнка</div>
-        <div class="field" style="margin:0"><div class="inp-group"><input class="inp has-suffix num" id="rMargin" inputmode="decimal" placeholder="15"><span class="suffix">%</span></div><div class="hint">Апка підказуватиме рекомендовану ціну = собівартість + ця націнка.</div></div>
-        <button class="btn ghost" id="rMarginSave" style="margin-top:12px">Зберегти націнку</button>
-      </div>
-      <div class="card" style="padding:16px;margin-bottom:16px">
-        <div class="eyebrow" style="margin-bottom:10px">Типи панелей (Вт)</div>
-        <div class="codes-wrap" id="typesList"></div>
-        <div style="display:flex;gap:8px;margin-top:12px"><input class="inp num" id="typeNew" inputmode="numeric" placeholder="напр. 550" style="flex:1"><button class="btn ghost" id="typeAdd" style="width:auto;padding:0 18px">Додати</button></div>
-        <div class="hint" style="margin-top:8px">Ці варіанти з'являться при закупівлі. Тапни по чипу, щоб видалити.</div>
-      </div>
-      <div class="card" style="padding:16px;margin-bottom:16px">
-        <div class="eyebrow" style="margin-bottom:10px">Звіти</div>
-        <div class="hint" style="margin-bottom:10px">Сформуй звіт за період, по палеті чи типу — і роздрукуй, збережи в PDF або поділись.</div>
         <button class="btn dark" id="reportBtn"><svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7zM14 3v4h4M9 13h6M9 17h6"/></svg> Сформувати звіт</button>
       </div>
-      <div class="card" style="padding:16px;margin-bottom:16px">
-        <div class="eyebrow" style="margin-bottom:10px">Довідник панелей</div>
-        <div class="hint" style="margin-bottom:10px">Параметри по кожному типу — вага, розміри тощо, щоб не шукати деінде.</div>
-        <div class="list" id="specList"></div>
-        <button class="btn ghost" id="specEditBtn" style="margin-top:10px">Редагувати параметри</button>
-        <div id="specEditorInline" style="margin-top:14px" hidden></div>
+
+      <!-- ДАНІ -->
+      <div class="card setcard">
+        <div class="setcard-hd">
+          <div class="setcard-ic">💾</div>
+          <div><div class="setcard-tt">Експорт даних</div><div class="setcard-ss">Усі панелі та угоди одним файлом</div></div>
+        </div>
+        <button class="btn ghost" id="rExport"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Вивантажити CSV</button>
       </div>
-      <div class="card" style="padding:16px;margin-bottom:16px">
-        <div class="eyebrow" style="margin-bottom:10px">Дані</div>
-        <button class="btn ghost" id="rExport"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Вивантажити CSV (для Google Таблиці)</button>
-        <div class="hint" style="margin-top:8px">Файл із усіма панелями та угодами.</div>
-      </div>
-      <div class="card" style="padding:16px">
-        <div class="eyebrow" style="margin-bottom:10px">Акаунт</div>
-        <div style="font-size:13px;color:var(--muted);margin-bottom:12px" id="acctEmail"></div>
-        <button class="btn ghost" id="rLogout" style="color:var(--bad)">Вийти з акаунта</button>
-      </div>
-      <div style="text-align:center;margin-top:20px">
-        <button class="btn ghost" id="themeToggle" style="width:auto;display:inline-flex;padding:10px 18px;font-size:13px">🌓 Тема</button>
+
+      <!-- АКАУНТ -->
+      <div class="card setcard">
+        <div class="setcard-hd">
+          <div class="setcard-ic">👤</div>
+          <div><div class="setcard-tt">Акаунт</div><div class="setcard-ss" id="acctEmail"></div></div>
+        </div>
+        <div class="spec-actions">
+          <button class="btn ghost" id="themeToggle" style="flex:1">🌓 Тема</button>
+          <button class="btn ghost" id="rLogout" style="flex:1;color:var(--bad)">Вийти</button>
+        </div>
       </div>
     </section>
   </main>
@@ -585,7 +631,8 @@ function applyBuyDefaults(){
 function saveLastBuy(price,rt,watt,mode){try{localStorage.setItem('op_lastbuy',JSON.stringify({price:price,rate:rt,watt:watt,mode:mode}));}catch(e){}}
 $('bPalletScan').addEventListener('click',function(){openScanner('palletcode');});
 /* types editor */
-function renderTypesEditor(){var w=$('typesList');if(!w)return;w.innerHTML=config.types.map(function(t){return '<span class="code-chip mono">'+t+' Вт<button data-t="'+t+'">×</button></span>';}).join('');w.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){var t=+b.getAttribute('data-t');config.types=config.types.filter(function(x){return x!=t;});saveTypes();renderTypesEditor();renderTypeChips();});});}
+function renderTypesEditor(){var w=$('typesList');if(!w)return;w.innerHTML=config.types.map(function(t){return '<span class="code-chip mono">'+t+' Вт<button type="button" data-t="'+t+'">×</button></span>';}).join('');}
+(function(){var w=$('typesList');if(w)w.addEventListener('click',function(e){var b=e.target.closest?e.target.closest('button[data-t]'):null;if(!b)return;var t=+b.getAttribute('data-t');config.types=config.types.filter(function(x){return x!=t;});saveTypes();renderTypesEditor();renderTypeChips();renderSpecList();});})();
 $('typeAdd').addEventListener('click',function(){var v=num($('typeNew').value);if(v<=0){toast('Впиши число','warn');return;}if(config.types.indexOf(v)<0)config.types.push(v);config.types.sort(function(a,b){return a-b;});$('typeNew').value='';saveTypes();renderTypesEditor();renderTypeChips();toast('Додано','ok');});
 function saveTypes(){try{localStorage.setItem('op_types',JSON.stringify(config.types));}catch(e){}sb.from('settings').upsert({user_id:uid,types:config.types}).catch(function(){});}
 $('bScan').addEventListener('click',function(){openScanner('buy');});
@@ -734,17 +781,24 @@ $('rExport').addEventListener('click',function(){
 /* ---------- SPECS (довідник) ---------- */
 var specFields=[['weight','Вага, кг'],['w','Ширина, мм'],['h','Висота, мм'],['d','Товщина, мм'],['v','Напруга, V'],['a','Струм, A'],['note','Примітка']];
 function renderSpecList(){var w=$('specList');if(!w)return;var keys=config.types;if(!keys.length){w.innerHTML='<div class="hint">Спочатку додай типи вище.</div>';return;}w.innerHTML=keys.map(function(t){var s=config.specs[t]||{};var parts=[];if(s.weight)parts.push(s.weight+' кг');if(s.w&&s.h)parts.push(s.w+'×'+s.h+(s.d?'×'+s.d:'')+' мм');if(s.v)parts.push(s.v+'V');var sub=parts.join(' · ')||'нема даних';return '<div class="row" style="cursor:default"><div><div class="code">'+t+' Вт</div><div class="meta">'+sub+(s.note?' · '+s.note:'')+'</div></div></div>';}).join('');}
-function openSpecEditor(cur){var host=$('specEditorInline');if(!host)return;cur=cur||config.types[0];if(!cur){toast('Спочатку додай типи','warn');return;}var s=config.specs[cur]||{};
+var specCur=null;
+function openSpecEditor(cur){var host=$('specEditorInline');if(!host)return;specCur=cur||specCur||config.types[0];if(!specCur){toast('Спочатку додай типи','warn');return;}renderSpecEditor();host.scrollIntoView&&host.scrollIntoView({behavior:'smooth',block:'nearest'});}
+function renderSpecEditor(){var host=$('specEditorInline');if(!host)return;var cur=specCur;var s=config.specs[cur]||{};
   var chips=config.types.map(function(t){return '<button type="button" class="code-chip" data-w="'+t+'" style="cursor:pointer;'+(t===cur?'outline:2px solid var(--accent);background:var(--accent);color:#231506;':'')+'">'+t+' Вт</button>';}).join('');
   var fields=specFields.map(function(f){return '<div class="field" style="margin-bottom:10px"><label>'+f[1]+'</label><input class="inp" id="sp_'+f[0]+'" value="'+(s[f[0]]!=null?String(s[f[0]]).replace(/"/g,'&quot;'):'')+'"></div>';}).join('');
   host.hidden=false;
-  host.innerHTML='<div class="card" style="padding:14px;background:var(--surface-2)"><div class="eyebrow" style="margin-bottom:8px">Впиши дані по типу</div><div class="codes-wrap" id="spTypes" style="margin-bottom:14px">'+chips+'</div>'+fields+'<button class="btn good" type="button" id="spSave"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Зберегти '+cur+' Вт</button><button class="btn ghost" type="button" id="spDone" style="margin-top:8px">Готово</button></div>';
-  function grab(){var o={};specFields.forEach(function(f){var el=$('sp_'+f[0]);if(el){var v=el.value.trim();if(v)o[f[0]]=v;}});config.specs[cur]=o;}
-  $('spTypes').querySelectorAll('[data-w]').forEach(function(b){b.addEventListener('click',function(){grab();saveSpecs();openSpecEditor(+b.getAttribute('data-w'));});});
-  $('spSave').addEventListener('click',function(){grab();saveSpecs();renderSpecList();toast('Збережено ✓','ok');});
-  $('spDone').addEventListener('click',function(){grab();saveSpecs();renderSpecList();host.hidden=true;host.innerHTML='';});
+  host.innerHTML='<div class="card" style="padding:14px;background:var(--surface-2)"><div class="eyebrow" style="margin-bottom:8px">Обери тип і впиши дані</div><div class="codes-wrap" id="spTypes" style="margin-bottom:14px">'+chips+'</div>'+fields+'<div class="spec-actions"><button class="btn good" type="button" data-act="save">Зберегти '+cur+' Вт</button><button class="btn ghost" type="button" data-act="done">Готово</button></div></div>';
 }
+function grabSpec(){if(!specCur)return;var o={};specFields.forEach(function(f){var el=$('sp_'+f[0]);if(el){var v=el.value.trim();if(v)o[f[0]]=v;}});config.specs[specCur]=o;}
 function saveSpecs(){try{localStorage.setItem('op_specs',JSON.stringify(config.specs));}catch(e){}sb.from('settings').upsert({user_id:uid,specs:config.specs}).catch(function(){});}
+(function(){var host=$('specEditorInline');if(!host)return;host.addEventListener('click',function(e){
+  var chip=e.target.closest?e.target.closest('button[data-w]'):null;
+  if(chip){grabSpec();saveSpecs();specCur=+chip.getAttribute('data-w');renderSpecEditor();return;}
+  var act=e.target.closest?e.target.closest('button[data-act]'):null;
+  if(!act)return;var a=act.getAttribute('data-act');
+  if(a==='save'){grabSpec();saveSpecs();renderSpecList();toast('Збережено ✓','ok');}
+  else if(a==='done'){grabSpec();saveSpecs();renderSpecList();host.hidden=true;host.innerHTML='';}
+});})();
 $('specEditBtn').addEventListener('click',function(){openSpecEditor();});
 
 /* ---------- REPORTS (звіти) ---------- */
