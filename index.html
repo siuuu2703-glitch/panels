@@ -163,6 +163,15 @@ nav.tabs .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
 .sum .r.tot{border-top:1px solid var(--line);margin-top:6px;padding-top:9px;font-weight:800;font-size:15.5px}
 .warnbox{background:var(--bad-soft);color:var(--bad);border-radius:11px;padding:11px 13px;font-size:12.5px;font-weight:700;margin-top:10px}
 
+/* ============ ХАРАКТЕРИСТИКИ ============ */
+.kv .r{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.kv .r:last-child{border-bottom:0}
+.kv .k{color:var(--muted);font-weight:600;flex:1 1 auto;min-width:0}
+.kv .v{font-weight:800;text-align:right;white-space:nowrap}
+.kv .r.wrap .v{white-space:normal;word-break:break-word}
+.bigtype{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.chev{margin-left:auto;color:var(--faint);font-size:22px;font-weight:700;flex:0 0 auto;padding-left:6px}
+
 /* ============ ПОРОЖНЬО ============ */
 .empty{text-align:center;padding:36px 20px;color:var(--muted)}
 .empty .ic{font-size:34px;margin-bottom:10px}
@@ -239,6 +248,10 @@ nav.tabs .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
       <div class="tile"><div class="lab">Вкладено</div><div class="big num" id="tInv">$0</div><div class="sub">собівартість складу</div></div>
       <div class="tile"><div class="lab">Прибуток</div><div class="big num pos" id="tProfit">$0</div><div class="sub" id="tProfitSub">з продажів</div></div>
       <div class="tile"><div class="lab">Чистими</div><div class="big num" id="tNet">$0</div><div class="sub">мінус реклама</div></div>
+    </div>
+    <div class="card">
+      <div class="chead"><div class="cic">📋</div><div><div class="ctt">Характеристики</div><div class="css">тапни тип — побачиш усі параметри</div></div></div>
+      <div class="chips" id="homeSpecs"></div>
     </div>
     <div class="card">
       <div class="chead"><div class="cic">📦</div><div><div class="ctt">Останні продажі</div><div class="css">що і за скільки пішло</div></div></div>
@@ -463,8 +476,14 @@ nav.tabs .fab svg{width:24px;height:24px;stroke:#231506;stroke-width:2.4}
     <div class="card" id="spForm"></div>
     <div class="btn-row">
       <button class="btn good" data-act="specSave"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Зберегти</button>
-      <button class="btn ghost" data-act="tab" data-tab="more">Готово</button>
+      <button class="btn ghost" data-act="specsDone">Готово</button>
     </div>
+  </section>
+
+  <!-- ---------- ХАРАКТЕРИСТИКИ (перегляд) ---------- -->
+  <section class="screen" id="sc-specview" hidden>
+    <div class="chips" id="svTypes" style="margin-bottom:16px"></div>
+    <div id="svBody"></div>
   </section>
 
 </main>
@@ -586,6 +605,8 @@ var sell={ basket:[], mode:'usd', filter:'all' };
 var scan={ ctx:null, codes:[], cam:null, running:false };
 var panelFilter='all';
 var specCur=null;
+var specFrom='more';      // звідки відкрили перегляд характеристик
+var specEditFrom='more';  // звідки відкрили редактор
 var adMode='usd';
 var screenNow='home';
 
@@ -595,7 +616,10 @@ var SPEC_FIELDS=[['weight','Вага, кг'],['w','Ширина, мм'],['h','В
    4. НАВІГАЦІЯ
    ========================================================== */
 var TABS=['home','buy','sell','panels','more'];
-var TITLES={home:'Облік Панелей',buy:'Закупівля',sell:'Продаж',sellform:'Продаж',panels:'Панелі',more:'Налаштування',detail:'Панель',scan:'Сканування',specs:'Довідник'};
+var TITLES={home:'Облік Панелей',buy:'Закупівля',sell:'Продаж',sellform:'Продаж',panels:'Панелі',more:'Налаштування',detail:'Панель',scan:'Сканування',specs:'Редагування',specview:'Характеристики'};
+
+// яку вкладку внизу підсвічувати для підекрану
+function tabOf(from){ return from==='detail'?'panels':(from==='home'?'home':'more'); }
 
 function show(name){
   screenNow=name;
@@ -604,10 +628,13 @@ function show(name){
     b.classList.toggle('on', b.getAttribute('data-tab')===name);
   });
   // підекрани лишають підсвіченою "батьківську" вкладку
-  if(name==='sellform') qs('nav.tabs button[data-tab="sell"]').classList.add('on');
-  if(name==='detail')   qs('nav.tabs button[data-tab="panels"]').classList.add('on');
-  if(name==='specs')    qs('nav.tabs button[data-tab="more"]').classList.add('on');
-  if(name==='scan')     qs('nav.tabs button[data-tab="'+(scan.ctx==='sell'?'sell':'buy')+'"]').classList.add('on');
+  var parent=null;
+  if(name==='sellform') parent='sell';
+  if(name==='detail')   parent='panels';
+  if(name==='scan')     parent=(scan.ctx==='sell'?'sell':'buy');
+  if(name==='specview') parent=tabOf(specFrom);
+  if(name==='specs')    parent=(specEditFrom==='specview'?tabOf(specFrom):'more');
+  if(parent) qs('nav.tabs button[data-tab="'+parent+'"]').classList.add('on');
 
   $('hBack').hidden = (TABS.indexOf(name)>=0);
   $('hLogo').hidden = !$('hBack').hidden;
@@ -615,6 +642,7 @@ function show(name){
   $('hSub').hidden = (name!=='home');
   window.scrollTo(0,0);
 
+  if(name==='home')   renderHome();
   if(name==='sell')   renderSell();
   if(name==='panels') renderPanels();
   if(name==='buy')    { renderBuyTypes(); renderBuyCodes(); renderBuySum(); }
@@ -630,7 +658,8 @@ on('back',function(){
   stopCamera();
   if(screenNow==='detail') show('panels');
   else if(screenNow==='sellform') show('sell');
-  else if(screenNow==='specs') show('more');
+  else if(screenNow==='specs') finishSpecEdit();
+  else if(screenNow==='specview') show(specFrom==='detail'?'detail':(specFrom||'more'));
   else if(screenNow==='scan') show(scan.ctx==='sell'?'sell':'buy');
   else show('home');
 });
@@ -720,6 +749,10 @@ function renderHome(){
   $('tProfitSub').textContent=sd.length?('продано '+sd.length+' шт'):'з продажів';
   $('tNet').textContent=usd(net);
   $('tNet').className='big num '+(net>=0?'pos':'neg');
+
+  $('homeSpecs').innerHTML = S.types.length ? S.types.map(function(t){
+    return '<button class="chip" data-act="viewSpec" data-t="'+t+'" data-from="home">'+t+' Вт</button>';
+  }).join('') : '<div class="hint">Додай типи в Налаштуваннях.</div>';
 
   var recent=sd.slice().sort(function(a,b){
     return new Date((b.sale&&b.sale.date)||0)-new Date((a.sale&&a.sale.date)||0);
@@ -1066,8 +1099,10 @@ on('openDetail',function(el){
       :
       '<button class="btn pri" data-act="sellThis" data-c="'+esc(p.code)+'" style="margin-bottom:14px">Продати цю панель</button>') +
 
-    (spec.length? '<div class="card"><div class="chead"><div class="cic">📋</div><div><div class="ctt">Параметри типу</div>'+
-      '<div class="css">'+p.watt+' Вт</div></div></div><div class="hint">'+esc(spec.join(' · '))+(sp.note?' · '+esc(sp.note):'')+'</div></div>' : '')+
+    (p.watt? '<div class="card"><div class="chead"><div class="cic">📋</div><div><div class="ctt">Характеристики</div>'+
+      '<div class="css">'+p.watt+' Вт</div></div></div>'+
+      '<div class="hint" style="margin-bottom:12px">'+(spec.length?esc(spec.join(' · ')):'Ще не заповнено')+'</div>'+
+      '<button class="btn ghost" data-act="viewSpec" data-t="'+p.watt+'" data-from="detail">Усі характеристики ›</button></div>' : '')+
 
     '<button class="btn danger" data-act="delPanel" data-id="'+p.id+'">Видалити запис</button>';
   show('detail');
@@ -1219,13 +1254,13 @@ on('addType',function(){
   if(S.types.indexOf(v)<0) S.types.push(v);
   S.types.sort(function(a,b){return a-b;});
   $('mNewType').value='';
-  saveTypes(); renderTypes(); renderBuyTypes(); renderSpecList();
+  saveTypes(); renderTypes(); renderBuyTypes(); renderSpecList(); renderHome();
   toast('Додано','ok');
 });
 on('delType',function(el){
   var t=+el.getAttribute('data-t');
   S.types=S.types.filter(function(x){return x!==t;});
-  saveTypes(); renderTypes(); renderBuyTypes(); renderSpecList();
+  saveTypes(); renderTypes(); renderBuyTypes(); renderSpecList(); renderHome();
 });
 
 on('saveRate',async function(el){
@@ -1311,15 +1346,100 @@ function renderSpecList(){
     if(s.w&&s.h) parts.push(s.w+'×'+s.h+(s.d?'×'+s.d:'')+' мм');
     if(s.v) parts.push(s.v+' V');
     if(s.a) parts.push(s.a+' A');
-    return '<div class="item"><div><div class="code">'+t+' Вт</div>'+
-      '<div class="meta">'+(parts.join(' · ')||'нема даних')+(s.note?' · '+esc(s.note):'')+'</div></div></div>';
+    return '<button class="item" data-act="viewSpec" data-t="'+t+'" data-from="more"><div><div class="code">'+t+' Вт</div>'+
+      '<div class="meta">'+(parts.join(' · ')||'нема даних')+(s.note?' · '+esc(s.note):'')+'</div></div><span class="chev">›</span></button>';
   }).join('');
 }
 on('openSpecs',function(){
   if(!S.types.length){ toast('Спочатку додай типи','warn'); return; }
   if(specCur==null || S.types.indexOf(specCur)<0) specCur=S.types[0];
+  specEditFrom='more';
   renderSpecScreen(); show('specs');
 });
+
+/* ---------- Перегляд характеристик ---------- */
+// рядки характеристик для типу t: [назва, значення]
+function specRows(t){
+  var s=S.specs[t]||{}, rows=[];
+  rows.push(['Потужність', t+' Вт']);
+  if(s.weight) rows.push(['Вага', s.weight+' кг']);
+  if(s.w||s.h||s.d) rows.push(['Розміри', [s.w,s.h,s.d].filter(Boolean).join(' × ')+' мм']);
+  var w=num(s.w), h=num(s.h);
+  if(w>0&&h>0){
+    var area=w*h/1e6;
+    rows.push(['Площа', area.toFixed(2)+' м²']);
+    var eff=t/(area*1000)*100;
+    if(eff>5&&eff<30) rows.push(['ККД (розрахунковий)', eff.toFixed(1)+' %']);
+  }
+  if(s.v) rows.push(['Напруга', s.v+' V']);
+  if(s.a) rows.push(['Струм', s.a+' A']);
+  if(s.note) rows.push(['Примітка', s.note, true]);
+  return rows;
+}
+function hasSpecs(t){ var s=S.specs[t]; return !!(s&&Object.keys(s).length); }
+
+function renderSpecView(){
+  var t=specCur;
+  var types=S.types.slice();
+  if(types.indexOf(t)<0) types.push(t);
+  $('svTypes').innerHTML=types.map(function(x){
+    return '<button class="chip'+(x===t?' on':'')+'" data-act="svPick" data-t="'+x+'">'+x+' Вт</button>';
+  }).join('');
+
+  var inStock=stockPanels().filter(function(p){return p.watt===t;}).length;
+  var soldN=soldPanels().filter(function(p){return p.watt===t;}).length;
+  var wt=num((S.specs[t]||{}).weight);
+
+  var body='<div class="card">'+
+    '<div class="bigtype">'+t+' Вт</div>'+
+    '<div class="css" style="margin:4px 0 6px">сонячна панель</div>'+
+    '<div class="kv">'+specRows(t).map(function(r){
+      return '<div class="r'+(r[2]?' wrap':'')+'"><span class="k">'+esc(r[0])+'</span><span class="v">'+esc(r[1])+'</span></div>';
+    }).join('')+'</div>';
+
+  if(!hasSpecs(t)){
+    body+='<div class="hint" style="margin-top:12px">Характеристик для цього типу ще нема.</div>';
+  }
+  body+='</div>';
+
+  body+='<div class="card"><div class="chead"><div class="cic">📦</div><div><div class="ctt">На складі: '+inStock+' шт</div>'+
+    '<div class="css">продано '+soldN+' шт'+(wt>0&&inStock?(' · склад важить ≈ '+Math.round(wt*inStock)+' кг'):'')+'</div></div></div></div>';
+
+  body+= hasSpecs(t)
+    ? '<div class="btn-row"><button class="btn pri" data-act="shareSpec">Поділитися</button><button class="btn ghost" data-act="editSpec">✏️ Редагувати</button></div>'
+    : '<button class="btn pri" data-act="editSpec">✏️ Заповнити характеристики</button>';
+
+  $('svBody').innerHTML=body;
+}
+
+on('viewSpec',function(el){
+  specCur=+el.getAttribute('data-t');
+  specFrom=el.getAttribute('data-from')||'more';
+  renderSpecView(); show('specview');
+});
+on('svPick',function(el){ specCur=+el.getAttribute('data-t'); renderSpecView(); });
+on('editSpec',function(){
+  specEditFrom='specview';
+  renderSpecScreen(); show('specs');
+});
+on('shareSpec',function(){
+  var t=specCur;
+  var text='Сонячна панель '+t+' Вт\n'+specRows(t).slice(1).map(function(r){return r[0]+': '+r[1];}).join('\n');
+  if(navigator.share){
+    navigator.share({title:'Панель '+t+' Вт',text:text}).catch(function(){});
+  } else {
+    try{ navigator.clipboard.writeText(text).then(function(){toast('Скопійовано ✓','ok');},function(){toast('Не вдалось скопіювати','warn');}); }
+    catch(e){ toast('Не вдалось скопіювати','warn'); }
+  }
+});
+
+// вихід з редактора: зберігаємо й повертаємось туди, звідки прийшли
+function finishSpecEdit(){
+  grabSpec(); saveSpecs(); renderSpecList(); renderHome();
+  if(specEditFrom==='specview'){ renderSpecView(); show('specview'); }
+  else show('more');
+}
+on('specsDone',function(){ finishSpecEdit(); });
 function renderSpecScreen(){
   $('spTypes').innerHTML=S.types.map(function(t){
     return '<button class="chip'+(specCur===t?' on':'')+'" data-act="specPick" data-t="'+t+'">'+t+' Вт</button>';
