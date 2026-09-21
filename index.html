@@ -233,6 +233,18 @@ button.tile{display:block;width:100%;text-align:left;font:inherit;color:inherit}
 .item.sel .ck{background:var(--accent);border-color:var(--accent);color:#231506}
 .opk{font-size:18px;flex:0 0 auto}
 
+/* ============ КЛІЄНТИ ============ */
+.av{width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;font-weight:800;font-size:14px;letter-spacing:.02em}
+.av.big{width:58px;height:58px;font-size:20px}
+.forbar{display:flex;align-items:center;gap:10px;background:var(--accent-soft);color:var(--accent-ink);border-radius:12px;padding:10px 12px;margin:-6px 0 14px;font-size:13.5px;font-weight:700}
+.forbar button{margin-left:auto;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.14);font-size:15px;font-weight:800}
+.hist{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+.hist .top{display:flex;justify-content:space-between;gap:10px;font-weight:800;font-size:13.5px}
+.hist .mid{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);margin-top:3px}
+.hist .codes{font-size:10.5px;color:var(--faint);margin-top:7px;line-height:1.5;word-break:break-all}
+.notice{background:var(--surface-2);border:1.5px dashed var(--accent);border-radius:14px;padding:13px;margin-bottom:14px}
+.notice .t{font-size:13.5px;font-weight:800;margin-bottom:4px}
+
 /* ============ ПОРОЖНЬО ============ */
 .empty{text-align:center;padding:36px 20px;color:var(--muted)}
 .empty .ic{font-size:34px;margin-bottom:10px}
@@ -310,7 +322,10 @@ button.tile{display:block;width:100%;text-align:left;font:inherit;color:inherit}
       <button class="tile" data-act="openStats"><div class="lab">Прибуток</div><div class="big pos" id="tProfit">$0</div><div class="sub" id="tProfitSub">з продажів</div></button>
       <button class="tile" data-act="openStats"><div class="lab">Чистими</div><div class="big" id="tNet">$0</div><div class="sub">мінус реклама</div></button>
     </div>
-    <button class="btn ghost" data-act="openStats" style="margin-bottom:14px">📊 Статистика і звіти ›</button>
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn ghost" data-act="openStats">📊 Статистика</button>
+      <button class="btn ghost" data-act="openClients">👥 Клієнти</button>
+    </div>
     <div class="card">
       <div class="chead"><div class="cic">📋</div><div><div class="ctt">Характеристики</div><div class="css">тапни тип — побачиш усі параметри</div></div></div>
       <div class="chips" id="homeSpecs"></div>
@@ -381,6 +396,7 @@ button.tile{display:block;width:100%;text-align:left;font:inherit;color:inherit}
   <section class="screen" id="sc-sell" hidden>
     <div class="h1">Продаж</div>
     <div class="lead">Познач панелі, які продаєш — або скануй.</div>
+    <div id="sellFor"></div>
 
     <div class="btn-row" style="margin-bottom:14px">
       <button class="btn dash" data-act="scan" data-ctx="sell"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M4 12h16"/></svg> Сканувати</button>
@@ -415,10 +431,14 @@ button.tile{display:block;width:100%;text-align:left;font:inherit;color:inherit}
         <div class="field" style="margin:0"><label>Ціна за шт</label><div class="ig"><input class="inp num sfx-pad" id="sfAmount" inputmode="decimal" placeholder="0"><span class="sfx" id="sfSfx">$</span></div></div>
         <div class="field" style="margin:0"><label>Курс</label><div class="ig"><input class="inp num sfx-pad" id="sfRate" inputmode="decimal" placeholder="0.00"><span class="sfx">₴</span></div></div>
       </div>
-      <div class="row2">
-        <div class="field" style="margin:0"><label>Покупець</label><input class="inp" id="sfBuyer" placeholder="необов'язково"></div>
-        <div class="field" style="margin:0"><label>Дата</label><input class="inp" id="sfDate" type="date"></div>
-      </div>
+      <div class="field" style="margin:12px 0 0"><label>Дата продажу</label><input class="inp" id="sfDate" type="date"></div>
+    </div>
+
+    <div class="card">
+      <div class="chead"><div class="cic">👤</div><div><div class="ctt">Клієнт</div><div class="css">обери зі списку або впиши нового</div></div></div>
+      <input class="inp" id="sfBuyer" placeholder="ім'я клієнта (необов'язково)" autocomplete="off">
+      <div class="chips" id="sfClients" style="margin-top:10px"></div>
+      <div class="hint" id="sfClientHint" style="margin-top:8px"></div>
     </div>
 
     <div class="card">
@@ -621,6 +641,39 @@ button.tile{display:block;width:100%;text-align:left;font:inherit;color:inherit}
     </div>
   </section>
 
+  <!-- ---------- КЛІЄНТИ ---------- -->
+  <section class="screen" id="sc-clients" hidden>
+    <div class="h1">Клієнти</div>
+    <div class="lead" id="clLead">Твої покупці та що вони купували.</div>
+    <button class="btn pri" data-act="newClient" style="margin-bottom:14px">＋ Новий клієнт</button>
+    <div id="clNotice"></div>
+    <input class="inp" id="clSearch" type="search" placeholder="Пошук: ім'я, телефон, місто" autocomplete="off" style="margin-bottom:12px">
+    <div class="seg sm" id="clSort" style="margin-bottom:14px"></div>
+    <div id="clLegacy"></div>
+    <div class="list" id="clList"></div>
+  </section>
+
+  <!-- ---------- КЛІЄНТ ---------- -->
+  <section class="screen" id="sc-client" hidden>
+    <div id="cBody"></div>
+  </section>
+
+  <!-- ---------- КЛІЄНТ: ФОРМА ---------- -->
+  <section class="screen" id="sc-clientedit" hidden>
+    <div class="h1" id="ceTitle">Новий клієнт</div>
+    <div class="lead">Обов'язкове лише ім'я.</div>
+    <div class="card">
+      <div class="field"><label>Ім'я або назва</label><input class="inp" id="ceName" placeholder="напр. Олег Петренко" autocomplete="off"></div>
+      <div class="field"><label>Телефон</label><input class="inp" id="cePhone" type="tel" inputmode="tel" placeholder="+380…" autocomplete="off"></div>
+      <div class="field"><label>Місто / адреса</label><input class="inp" id="ceCity" placeholder="необов'язково" autocomplete="off"></div>
+      <div class="field" style="margin:0"><label>Примітка</label><textarea class="inp" id="ceNote" rows="3" placeholder="напр. монтажник, бере оптом"></textarea></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn ghost" data-act="back">Скасувати</button>
+      <button class="btn good" data-act="saveClient"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-9"/></svg> Зберегти</button>
+    </div>
+  </section>
+
   <!-- ---------- ХАРАКТЕРИСТИКИ (перегляд) ---------- -->
   <section class="screen" id="sc-specview" hidden>
     <div class="chips" id="svTypes" style="margin-bottom:16px"></div>
@@ -746,7 +799,7 @@ var S={
   specs:{}
 };
 var buy={ codes:[], watt:null, mode:'unit' };
-var sell={ basket:[], mode:'usd', filter:'all' };
+var sell={ basket:[], mode:'usd', filter:'all', clientId:null };
 var scan={ ctx:null, codes:[], cam:null, running:false };
 var panelFilter='all';
 var pView='panels';          // panels | ops
@@ -760,6 +813,10 @@ var stPeriod='all';       // період статистики: all | year | mon
 var stSel=-1;             // вибраний стовпчик графіка
 var rp={scope:'month',month:null,pallet:null,type:null};  // налаштування звіту
 var rpFrom='stats';       // звідки відкрили звіт
+var clCur=null;           // відкритий клієнт
+var clFrom='clients';     // звідки відкрили картку клієнта
+var ceEditId=null;        // кого редагуємо (null — новий)
+var clSort='last';        // сортування списку клієнтів
 var adMode='usd';
 var screenNow='home';
 
@@ -769,7 +826,7 @@ var SPEC_FIELDS=[['weight','Вага, кг'],['w','Ширина, мм'],['h','В
    4. НАВІГАЦІЯ
    ========================================================== */
 var TABS=['home','buy','sell','panels','more'];
-var TITLES={home:'Облік Панелей',buy:'Закупівля',sell:'Продаж',sellform:'Продаж',panels:'Панелі',more:'Налаштування',detail:'Панель',scan:'Сканування',specs:'Редагування',specview:'Характеристики',stats:'Статистика',report:'Звіт'};
+var TITLES={home:'Облік Панелей',buy:'Закупівля',sell:'Продаж',sellform:'Продаж',panels:'Панелі',more:'Налаштування',detail:'Панель',scan:'Сканування',specs:'Редагування',specview:'Характеристики',stats:'Статистика',report:'Звіт',clients:'Клієнти',client:'Клієнт',clientedit:'Клієнт'};
 
 // яку вкладку внизу підсвічувати для підекрану
 function tabOf(from){ return from==='detail'?'panels':(from==='home'?'home':'more'); }
@@ -789,6 +846,7 @@ function show(name){
   if(name==='specs')    parent=(specEditFrom==='specview'?tabOf(specFrom):'more');
   if(name==='stats')    parent='home';
   if(name==='report')   parent=(rpFrom==='more'?'more':'home');
+  if(name==='clients'||name==='client'||name==='clientedit') parent=(clFrom==='detail'?'panels':'home');
   if(parent) qs('nav.tabs button[data-tab="'+parent+'"]').classList.add('on');
 
   $('hBack').hidden = (TABS.indexOf(name)>=0);
@@ -800,6 +858,8 @@ function show(name){
   if(name==='home')   renderHome();
   if(name==='stats')  renderStats();
   if(name==='report') renderReport();
+  if(name==='clients') renderClients();
+  if(name==='client') renderClient();
   if(name==='sell')   renderSell();
   if(name==='panels') renderPanels();
   if(name==='buy')    { renderBuyTypes(); renderBuyCodes(); renderBuySum(); }
@@ -819,6 +879,9 @@ on('back',function(){
   else if(screenNow==='specview') show(specFrom==='detail'?'detail':(specFrom||'more'));
   else if(screenNow==='stats') show('home');
   else if(screenNow==='report') show(rpFrom==='more'?'more':'stats');
+  else if(screenNow==='clients') show('home');
+  else if(screenNow==='client') show(clFrom==='detail'?'detail':'clients');
+  else if(screenNow==='clientedit') show(ceEditId?'client':'clients');
   else if(screenNow==='scan') show(scan.ctx==='sell'?'sell':'buy');
   else show('home');
 });
@@ -1060,6 +1123,7 @@ on('saveBuy',async function(el){
    9. ПРОДАЖ
    ========================================================== */
 function renderSell(){
+  renderSellFor();
   var st=stockPanels();
   // фільтр по типах
   var types=[{v:'all',l:'Усі'}].concat(S.types.map(function(t){return {v:String(t),l:t+' Вт'};}));
@@ -1117,6 +1181,8 @@ on('toSellForm',function(){
   if(!sell.basket.length){ toast('Нічого не обрано','warn'); return; }
   $('sfRate').value = S.rate.usd||'';
   $('sfDate').value = todayStr();
+  var pre=sell.clientId&&clientById(sell.clientId);
+  if(pre) $('sfBuyer').value=pre.name;
   renderSellForm();
   show('sellform');
 });
@@ -1132,6 +1198,7 @@ function renderSellForm(){
   $('sfCodes').innerHTML=arr.map(function(p){
     return '<span class="tag mono">'+esc(p.code)+'<button data-act="rmSell" data-c="'+esc(p.code)+'">×</button></span>';
   }).join('');
+  renderSfClients();
   calcSell();
 }
 on('rmSell',function(el){
@@ -1179,6 +1246,13 @@ on('confirmSell',async function(el){
   var buyer=$('sfBuyer').value.trim();
 
   el.disabled=true;
+  // клієнт: обраний → знайдений за іменем → новий (створюється автоматично)
+  var client=null;
+  if(buyer){
+    client=(sell.clientId&&clientById(sell.clientId)) || findClientByName(buyer);
+    if(!client) client=await addClient({name:buyer});
+    buyer=client.name;
+  }
   var fails=0;
   var sid='s'+Date.now();   // одна операція продажу — один ідентифікатор
   // панелі з однаковою собівартістю мають однаковий прибуток → один запит на групу
@@ -1187,7 +1261,7 @@ on('confirmSell',async function(el){
   var keys=Object.keys(groups);
   for(var i=0;i<keys.length;i++){
     var g=groups[keys[i]];
-    var sale={ sid:sid, amount:amount, currency:sell.mode, priceUsd:perUsd, rate:rate,
+    var sale={ sid:sid, clientId:client?client.id:null, amount:amount, currency:sell.mode, priceUsd:perUsd, rate:rate,
                buyer:buyer, date:when, profitUsd:perUsd-g[0].costUsd };
     fails+=await inChunks(g.map(function(p){return p.id;}),function(part){
       return sb.from('panels').update({status:'sold',sale:sale}).in('id',part);
@@ -1197,7 +1271,7 @@ on('confirmSell',async function(el){
   if(fails){ toast('Частину панелей не вдалось продати — перевір список','warn'); }
   else toast('Продано '+arr.length+' шт ✓','ok');
 
-  sell.basket=[]; $('sfAmount').value=''; $('sfBuyer').value='';
+  sell.basket=[]; sell.clientId=null; $('sfAmount').value=''; $('sfBuyer').value='';
   await loadPanels();
   renderHome(); renderSell(); renderPanels();
   show('home');
@@ -1452,6 +1526,7 @@ on('openDetail',function(el){
     (sold ?
       '<div class="card"><div class="chead"><div class="cic">✅</div><div><div class="ctt">Продаж</div>'+
       '<div class="css">'+fmtDate(p.sale&&p.sale.date)+(p.sale&&p.sale.buyer?' · '+esc(p.sale.buyer):'')+'</div></div></div>'+
+      (clientOfPanel(p)?'<button class="btn ghost sm" data-act="openClient" data-id="'+esc(clientOfPanel(p).id)+'" data-from="detail" style="width:100%;margin-bottom:12px">👤 '+esc(clientOfPanel(p).name)+' — картка клієнта ›</button>':'')+
       '<div class="sum"><div class="r"><span>Ціна продажу</span><span class="mono">'+usd(p.sale&&p.sale.priceUsd)+'</span></div>'+
       '<div class="r tot"><span>Прибуток</span><span class="mono '+((p.sale&&p.sale.profitUsd)>=0?'pos':'neg')+'">'+usd(p.sale&&p.sale.profitUsd)+'</span></div></div>'+
       '<div class="field" style="margin:14px 0 0"><label>Дата продажу</label>'+
@@ -1840,6 +1915,337 @@ on('specPick',function(el){
 on('specSave',function(){
   grabSpec(); saveSpecs(); renderSpecList();
   toast('Збережено ✓','ok');
+});
+
+/* ==========================================================
+   12а. КЛІЄНТИ
+   Зберігаються в таблиці clients. Якщо таблиці ще нема (SQL не
+   запущено) — працюють на телефоні, а потім самі переносяться в хмару.
+   ========================================================== */
+var CLIENTS_SQL=[
+"create table if not exists public.clients (",
+"  id uuid primary key default gen_random_uuid(),",
+"  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,",
+"  name text not null, phone text, city text, note text,",
+"  created_at timestamptz default now()",
+");",
+"alter table public.clients enable row level security;",
+"drop policy if exists \"own clients\" on public.clients;",
+"create policy \"own clients\" on public.clients for all using (user_id = auth.uid()) with check (user_id = auth.uid());",
+"do $$ begin alter publication supabase_realtime add table public.clients; exception when duplicate_object then null; end $$;",
+"alter table public.settings add column if not exists types jsonb;",
+"alter table public.settings add column if not exists specs jsonb;"
+].join('\n');
+
+S.clients=[]; S.clientsMode='cloud';   // cloud | local | offline
+
+function uuid(){
+  if(window.crypto&&crypto.randomUUID) return crypto.randomUUID();
+  var d=crypto.getRandomValues(new Uint8Array(16)); d[6]=(d[6]&15)|64; d[8]=(d[8]&63)|128;
+  var h=Array.prototype.map.call(d,function(b){return (b<16?'0':'')+b.toString(16);}).join('');
+  return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
+}
+function normName(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function initials(n){ var w=String(n||'?').trim().split(/\s+/); return ((w[0]||'?')[0]+((w[1]||'')[0]||'')).toUpperCase(); }
+function clientById(id){ return S.clients.filter(function(c){return c.id===id;})[0]||null; }
+function findClientByName(n){ var k=normName(n); return k?(S.clients.filter(function(c){return normName(c.name)===k;})[0]||null):null; }
+function mapClient(r){ return {id:r.id,name:r.name||'',phone:r.phone||'',city:r.city||'',note:r.note||'',createdAt:r.created_at||r.createdAt||''}; }
+function clientRow(c){ return {id:c.id,user_id:uid,name:c.name,phone:c.phone||null,city:c.city||null,note:c.note||null}; }
+function isMissingTable(err){
+  var m=String((err&&err.message)||'')+' '+String((err&&err.code)||'');
+  return /PGRST205|42P01|does not exist|schema cache|Could not find the table/i.test(m);
+}
+// продаж належить клієнту: за id (якщо клієнт існує), інакше — за іменем
+function saleClientId(p){
+  var s=p.sale||{};
+  if(s.clientId && clientById(s.clientId)) return s.clientId;
+  var c=findClientByName(s.buyer);
+  return c?c.id:null;
+}
+function clientOfPanel(p){ var id=p&&p.status==='sold'?saleClientId(p):null; return id?clientById(id):null; }
+function clientSales(c){ return soldPanels().filter(function(p){ return saleClientId(p)===c.id; }); }
+function clientStats(c){
+  var arr=clientSales(c), ops={};
+  arr.forEach(function(p){ ops[saleKey(p)]=1; });
+  var dates=arr.map(function(p){return p.sale.date||'';}).filter(Boolean).sort();
+  return { arr:arr, n:arr.length, ops:Object.keys(ops).length,
+    spent:sum(arr,function(p){return p.sale.priceUsd;}), profit:sum(arr,function(p){return p.sale.profitUsd;}),
+    first:dates[0]||'', last:dates[dates.length-1]||'' };
+}
+
+async function loadClients(){
+  var pending=lsGet('op_clients_pending',[]);
+  var r=await sb.from('clients').select('*').eq('user_id',uid);
+  if(r.error){
+    S.clientsMode=isMissingTable(r.error)?'local':'offline';
+    var cache=lsGet('op_clients_cache',[]), seen={}, all=[];
+    cache.concat(pending).forEach(function(c){ if(!seen[c.id]){seen[c.id]=1; all.push(c);} });
+    S.clients=all;
+    return;
+  }
+  S.clientsMode='cloud';
+  var rows=(r.data||[]).map(mapClient);
+  if(pending.length){   // таблиця з'явилась — переносимо клієнтів з телефону в хмару
+    var have={}; rows.forEach(function(c){have[c.id]=1;});
+    var up=pending.filter(function(c){return !have[c.id];});
+    var ins= up.length ? await sb.from('clients').insert(up.map(clientRow)) : {error:null};
+    if(!ins.error){ rows=rows.concat(up); lsSet('op_clients_pending',[]); }
+  }
+  S.clients=rows;
+  lsSet('op_clients_cache',rows);
+}
+function savePending(c){
+  var pend=lsGet('op_clients_pending',[]).filter(function(x){return x.id!==c.id;});
+  pend.push(c); lsSet('op_clients_pending',pend);
+}
+function isPending(id){ return lsGet('op_clients_pending',[]).some(function(x){return x.id===id;}); }
+function cacheClients(){ lsSet('op_clients_cache',S.clients); }
+
+async function addClient(o){
+  var c={ id:uuid(), name:String(o.name||'').trim(), phone:String(o.phone||'').trim(),
+          city:String(o.city||'').trim(), note:String(o.note||'').trim(), createdAt:new Date().toISOString() };
+  if(S.clientsMode==='cloud'){
+    var r=await sb.from('clients').insert(clientRow(c));
+    if(r.error){ if(isMissingTable(r.error)) S.clientsMode='local'; savePending(c); }
+  } else savePending(c);
+  S.clients.push(c); cacheClients();
+  await linkLegacySales(c);
+  return c;
+}
+async function updateClient(id,f){
+  var c=clientById(id); if(!c) return false;
+  if(isPending(id) || S.clientsMode!=='cloud'){
+    Object.assign(c,f); savePending(c);
+  } else {
+    var r=await sb.from('clients').update({name:f.name,phone:f.phone||null,city:f.city||null,note:f.note||null}).eq('id',id);
+    if(r.error){ toast('Помилка збереження','warn'); return false; }
+    Object.assign(c,f);
+  }
+  cacheClients();
+  await linkLegacySales(c);
+  return true;
+}
+async function deleteClient(id){
+  if(isPending(id)){
+    lsSet('op_clients_pending',lsGet('op_clients_pending',[]).filter(function(x){return x.id!==id;}));
+  } else if(S.clientsMode==='cloud'){
+    var r=await sb.from('clients').delete().eq('id',id);
+    if(r.error){ toast('Помилка','warn'); return false; }
+  }
+  S.clients=S.clients.filter(function(c){return c.id!==id;});
+  cacheClients();
+  return true;
+}
+// старі продажі з таким самим ім'ям покупця — прив'язати до клієнта
+async function linkLegacySales(c){
+  var k=normName(c.name);
+  var arr=soldPanels().filter(function(p){
+    var s=p.sale||{};
+    var linked=s.clientId && clientById(s.clientId);
+    return !linked && normName(s.buyer)===k;
+  });
+  if(!arr.length) return 0;
+  var groups={};
+  arr.forEach(function(p){
+    var ns=Object.assign({},p.sale,{clientId:c.id});
+    var key=JSON.stringify(ns);
+    (groups[key]=groups[key]||{sale:ns,ids:[]}).ids.push(p.id);
+  });
+  var gk=Object.keys(groups);
+  for(var i=0;i<gk.length;i++){
+    var g=groups[gk[i]];
+    await inChunks(g.ids,function(part){ return sb.from('panels').update({sale:g.sale}).in('id',part); });
+  }
+  await loadPanels();
+  return arr.length;
+}
+
+/* ---------- Список клієнтів ---------- */
+function legacyBuyers(){
+  var out={};
+  soldPanels().forEach(function(p){
+    var s=p.sale||{};
+    if(saleClientId(p)) return;
+    var k=normName(s.buyer); if(!k) return;
+    (out[k]=out[k]||{name:String(s.buyer).trim(),n:0}).n++;
+  });
+  return Object.keys(out).map(function(k){return out[k];}).sort(function(a,b){return b.n-a.n;});
+}
+function renderClients(){
+  $('clSort').innerHTML=[{v:'last',l:'Останні'},{v:'spent',l:'Найбільші'},{v:'az',l:'А–Я'}].map(function(x){
+    return '<button class="'+(clSort===x.v?'on':'')+'" data-act="clSort" data-v="'+x.v+'">'+x.l+'</button>';
+  }).join('');
+
+  $('clNotice').innerHTML = S.clientsMode==='local'
+    ? '<div class="notice"><div class="t">📱 Клієнти зберігаються лише на цьому телефоні</div>'+
+      '<div class="hint" style="margin-bottom:10px">Щоб вони були в хмарі й на інших пристроях — один раз додай таблицю в Supabase: скопіюй SQL → Supabase → SQL Editor → New query → встав → Run. Після цього клієнти з телефону перенесуться самі.</div>'+
+      '<button class="btn ghost sm" data-act="copySql" style="width:100%">Скопіювати SQL</button></div>'
+    : (S.clientsMode==='offline' ? '<div class="notice"><div class="t">Нема зв\'язку з базою</div><div class="hint">Нові клієнти збережуться на телефоні й відправляться пізніше.</div></div>' : '');
+
+  var lb=legacyBuyers();
+  $('clLegacy').innerHTML = lb.length
+    ? '<div class="card"><div class="chead"><div class="cic">🧾</div><div><div class="ctt">Покупці з минулих продажів</div><div class="css">ще без картки — тапни, щоб додати</div></div></div>'+
+      '<div class="chips">'+lb.map(function(b){ return '<button class="chip" data-act="importBuyer" data-n="'+esc(b.name)+'">＋ '+esc(b.name)+' · '+b.n+' шт</button>'; }).join('')+'</div>'+
+      (lb.length>1?'<button class="btn ghost sm" data-act="importAll" style="width:100%;margin-top:12px">Додати всіх ('+lb.length+')</button>':'')+'</div>'
+    : '';
+
+  var q=normName($('clSearch').value), qd=q.replace(/\D/g,'');
+  var list=S.clients.map(function(c){ return {c:c, st:clientStats(c)}; }).filter(function(x){
+    if(!q) return true;
+    var c=x.c;
+    return normName(c.name).indexOf(q)>=0 || normName(c.city).indexOf(q)>=0 ||
+           (qd.length>=3 && String(c.phone).replace(/\D/g,'').indexOf(qd)>=0);
+  });
+  list.sort(function(a,b){
+    if(clSort==='spent') return b.st.spent-a.st.spent || a.c.name.localeCompare(b.c.name,'uk');
+    if(clSort==='az') return a.c.name.localeCompare(b.c.name,'uk');
+    return String(b.st.last||b.c.createdAt||'').localeCompare(String(a.st.last||a.c.createdAt||''));
+  });
+  $('clLead').textContent = S.clients.length ? (S.clients.length+' '+plural(S.clients.length,'клієнт','клієнти','клієнтів')) : 'Твої покупці та що вони купували.';
+  $('clList').innerHTML = list.length ? list.map(function(x){
+    var c=x.c, st=x.st, meta=[c.phone,c.city].filter(Boolean).map(esc).join(' · ')||'без контактів';
+    return '<button class="item" data-act="openClient" data-id="'+esc(c.id)+'" data-from="clients">'+
+      '<span class="av">'+esc(initials(c.name))+'</span>'+
+      '<div style="min-width:0"><div class="code">'+esc(c.name)+'</div><div class="meta">'+meta+'</div></div>'+
+      '<div class="right">'+(st.n?'<div class="amt">'+usd(st.spent)+'</div><div class="meta">'+st.n+' шт · '+dShort(st.last)+'</div>':'<div class="meta">ще без покупок</div>')+'</div></button>';
+  }).join('') : (S.clients.length
+      ? '<div class="empty"><div class="ic">🔍</div><h3>Нічого не знайдено</h3><p>Спробуй інше ім\'я чи номер.</p></div>'
+      : '<div class="empty"><div class="ic">👥</div><h3>Клієнтів ще нема</h3><p>Додай вручну — або просто впиши ім\'я покупця під час продажу, і клієнт створиться сам.</p></div>');
+}
+
+/* ---------- Картка клієнта ---------- */
+function telOf(p){ return String(p||'').replace(/[^\d+]/g,''); }
+function intlPhone(p){ var d=String(p||'').replace(/\D/g,''); if(d.length===10&&d[0]==='0') d='38'+d; return d; }
+function renderClient(){
+  var c=clientById(clCur);
+  if(!c){ $('cBody').innerHTML='<div class="empty"><div class="ic">👤</div><h3>Клієнта не знайдено</h3></div>'; return; }
+  var st=clientStats(c);
+  var h='<div class="card"><div style="display:flex;gap:14px;align-items:center">'+
+      '<span class="av big">'+esc(initials(c.name))+'</span>'+
+      '<div style="min-width:0"><div class="bigtype" style="font-size:23px;word-break:break-word">'+esc(c.name)+'</div>'+
+      '<div class="css" style="margin-top:3px">'+([c.phone,c.city].filter(Boolean).map(esc).join(' · ')||'контактів не вказано')+'</div></div></div>'+
+      (c.note?'<div class="hint" style="margin-top:12px;font-size:13px;color:var(--muted)">'+esc(c.note)+'</div>':'')+
+      (c.phone?'<div class="btn-row" style="margin-top:14px"><button class="btn good" data-act="callClient">📞 Подзвонити</button><button class="btn ghost" data-act="viberClient">Viber</button></div>':'')+
+    '</div>';
+
+  function kpi(l,v,s,cls){ return '<div class="kpi"><div class="l">'+l+'</div><div class="v'+(cls?' '+cls:'')+'">'+v+'</div><div class="s">'+s+'</div></div>'; }
+  h+='<div class="kpis">'+
+     kpi('Куплено', st.n+' шт', st.ops+' '+plural(st.ops,'покупка','покупки','покупок'))+
+     kpi('Сума покупок', usd(st.spent), st.n?'в середньому '+usd(st.spent/st.n)+'/шт':'—')+
+     kpi('Прибуток з клієнта', usd(st.profit), st.n?'':'—', st.profit>=0?'pos':'neg')+
+     kpi('Остання покупка', st.last?dShort(st.last):'—', st.first&&st.first!==st.last?'перша '+dShort(st.first):'')+
+     '</div>';
+
+  h+='<div class="btn-row" style="margin-bottom:14px"><button class="btn pri" data-act="sellToClient">Новий продаж</button><button class="btn ghost" data-act="editClient">✏️ Редагувати</button></div>';
+
+  var g={}; st.arr.forEach(function(p){ var k=saleKey(p); (g[k]=g[k]||[]).push(p); });
+  var keys=Object.keys(g).sort(function(a,b){ return new Date(g[b][0].sale.date||0)-new Date(g[a][0].sale.date||0); });
+  h+='<div class="card"><div class="chead"><div class="cic">🧾</div><div><div class="ctt">Історія покупок</div><div class="css">коди панелей — для гарантії</div></div></div>';
+  h+= keys.length ? '<div class="list">'+keys.map(function(k){
+      var a=g[k], s=a[0].sale, tw={};
+      a.forEach(function(p){ var t=p.watt?p.watt+' Вт':'без типу'; tw[t]=(tw[t]||0)+1; });
+      var types=Object.keys(tw).map(function(t){return t+' × '+tw[t];}).join(', ');
+      var pr=sum(a,function(p){return p.sale.profitUsd;});
+      return '<div class="hist"><div class="top"><span>'+dShort(s.date)+' · '+a.length+' шт</span><span>'+usd(sum(a,function(p){return p.sale.priceUsd;}))+'</span></div>'+
+        '<div class="mid"><span>'+esc(types)+' · '+usd(s.priceUsd)+'/шт</span><span class="'+(pr>=0?'pos':'neg')+'">'+(pr>=0?'+':'')+usd(pr)+'</span></div>'+
+        '<div class="codes mono">'+a.map(function(p){return esc(p.code);}).join(', ')+'</div></div>';
+    }).join('')+'</div>'
+    : '<div class="hint">Покупок ще нема.</div>';
+  h+='</div>';
+
+  h+='<button class="btn danger" data-act="delClient">Видалити клієнта</button>'+
+     '<div class="hint" style="text-align:center;margin-top:8px">Продажі при цьому не зникнуть — лишаться в історії з іменем.</div>';
+  $('cBody').innerHTML=h;
+}
+
+/* ---------- Форма клієнта ---------- */
+function openClientForm(c){
+  ceEditId=c?c.id:null;
+  $('ceTitle').textContent = c?'Редагувати клієнта':'Новий клієнт';
+  $('ceName').value=c?c.name:''; $('cePhone').value=c?c.phone:''; $('ceCity').value=c?c.city:''; $('ceNote').value=c?c.note:'';
+  show('clientedit');
+}
+
+/* ---------- Клієнт у формі продажу ---------- */
+function renderSfClients(){
+  var q=normName($('sfBuyer').value);
+  var sel=sell.clientId?clientById(sell.clientId):null;
+  if(sel && normName(sel.name)!==q){ sell.clientId=null; sel=null; }      // ім'я змінили вручну
+  if(!sel && q){ var ex=findClientByName(q); if(ex){ sell.clientId=ex.id; sel=ex; } }
+  var pool=S.clients.map(function(c){return {c:c,last:clientStats(c).last};}).filter(function(x){
+    if(sel && x.c.id===sel.id) return false;
+    if(!q) return true;
+    return normName(x.c.name).indexOf(q)>=0 || String(x.c.phone).replace(/\D/g,'').indexOf(q.replace(/\D/g,'')||'#')>=0;
+  }).sort(function(a,b){ return String(b.last).localeCompare(String(a.last)); }).slice(0,6);
+  $('sfClients').innerHTML =
+    (sel?'<span class="tag">✓ '+esc(sel.name)+(sel.phone?' · '+esc(sel.phone):'')+'</span>':'')+
+    (sel&&q?'':pool.map(function(x){ return '<button class="chip" data-act="pickClient" data-id="'+esc(x.c.id)+'">'+esc(x.c.name)+'</button>'; }).join(''));
+  $('sfClientHint').textContent = sel ? 'Продаж запишеться в історію цього клієнта.'
+    : (q ? 'Нового клієнта «'+$('sfBuyer').value.trim()+'» буде додано автоматично.' : '');
+}
+function renderSellFor(){
+  var c=sell.clientId?clientById(sell.clientId):null;
+  $('sellFor').innerHTML = c ? '<div class="forbar">👤 Продаж для: '+esc(c.name)+'<button data-act="clearSellFor" aria-label="Прибрати">×</button></div>' : '';
+}
+
+/* ---------- Дії ---------- */
+on('openClients',function(){ clFrom='clients'; show('clients'); });
+on('clSort',function(el){ clSort=el.getAttribute('data-v'); renderClients(); });
+on('newClient',function(){ openClientForm(null); });
+on('openClient',function(el){
+  clCur=el.getAttribute('data-id');
+  clFrom=el.getAttribute('data-from')||'clients';
+  show('client');
+});
+on('editClient',function(){ openClientForm(clientById(clCur)); });
+on('saveClient',async function(el){
+  var f={ name:$('ceName').value.trim(), phone:$('cePhone').value.trim(), city:$('ceCity').value.trim(), note:$('ceNote').value.trim() };
+  if(!f.name){ toast('Впиши ім\'я','warn'); $('ceName').focus(); return; }
+  var dup=findClientByName(f.name);
+  if(dup && dup.id!==ceEditId){ toast('Клієнт «'+dup.name+'» вже є','warn'); return; }
+  el.disabled=true;
+  if(ceEditId){
+    var ok=await updateClient(ceEditId,f);
+    el.disabled=false; if(!ok) return;
+    clCur=ceEditId; toast('Збережено ✓','ok');
+  } else {
+    var c=await addClient(f);
+    el.disabled=false;
+    clCur=c.id; clFrom='clients'; toast('Клієнта додано ✓','ok');
+  }
+  ceEditId=null;
+  show('client');
+});
+on('delClient',async function(){
+  var c=clientById(clCur); if(!c) return;
+  if(!confirm('Видалити клієнта «'+c.name+'»?\nЙого продажі лишаться в історії з іменем.')) return;
+  if(await deleteClient(c.id)){ toast('Клієнта видалено'); show('clients'); }
+});
+on('callClient',function(){ var c=clientById(clCur); if(c&&c.phone) location.href='tel:'+telOf(c.phone); });
+on('viberClient',function(){ var c=clientById(clCur); if(c&&c.phone) location.href='viber://chat?number=%2B'+intlPhone(c.phone); });
+on('sellToClient',function(){ sell.clientId=clCur; show('sell'); });
+on('clearSellFor',function(){ sell.clientId=null; renderSellFor(); });
+on('pickClient',function(el){
+  var c=clientById(el.getAttribute('data-id')); if(!c) return;
+  sell.clientId=c.id; $('sfBuyer').value=c.name; renderSfClients();
+});
+on('importBuyer',async function(el){
+  var n=el.getAttribute('data-n');
+  if(findClientByName(n)) return;
+  el.disabled=true;
+  var c=await addClient({name:n});
+  renderClients(); toast('Додано: '+c.name,'ok');
+});
+on('importAll',async function(el){
+  var lb=legacyBuyers(); if(!lb.length) return;
+  el.disabled=true;
+  for(var i=0;i<lb.length;i++){ if(!findClientByName(lb[i].name)) await addClient({name:lb[i].name}); }
+  renderClients(); toast('Додано клієнтів: '+lb.length,'ok');
+});
+on('copySql',function(){
+  try{
+    navigator.clipboard.writeText(CLIENTS_SQL).then(function(){ toast('SQL скопійовано ✓','ok'); },function(){ toast('Не вдалось скопіювати','warn'); });
+  }catch(e){ toast('Не вдалось скопіювати','warn'); }
 });
 
 /* ==========================================================
@@ -2287,7 +2693,7 @@ async function onLogin(session){
   uid=session.user.id; userEmail=session.user.email||'';
   $('auth').hidden=true; $('app').hidden=false;
   $('bDate').value=todayStr(); $('mAdDate').value=todayStr();
-  await Promise.all([loadSettings(),loadPanels(),loadBatches(),loadAds()]);
+  await Promise.all([loadSettings(),loadPanels(),loadBatches(),loadAds(),loadClients()]);
   renderAll(); applyBuyDefaults(); show('home');
   subscribe();
 }
@@ -2297,6 +2703,7 @@ function subscribe(){
       .on('postgres_changes',{event:'*',schema:'public',table:'panels',filter:'user_id=eq.'+uid},function(){ loadPanels().then(function(){renderHome();renderPanels();renderSell();if(screenNow==='stats')renderStats();if(screenNow==='report')renderReport();}); })
       .on('postgres_changes',{event:'*',schema:'public',table:'settings',filter:'user_id=eq.'+uid},function(){ loadSettings().then(function(){renderHeader();renderSettings();renderSpecList();renderBuyTypes();}); })
       .on('postgres_changes',{event:'*',schema:'public',table:'ad_expenses',filter:'user_id=eq.'+uid},function(){ loadAds().then(function(){renderAds();renderHome();}); })
+      .on('postgres_changes',{event:'*',schema:'public',table:'clients',filter:'user_id=eq.'+uid},function(){ loadClients().then(function(){ if(screenNow==='clients')renderClients(); if(screenNow==='client')renderClient(); }); })
       .subscribe();
   }catch(e){}
 }
@@ -2314,6 +2721,8 @@ function subscribe(){
     var el=$(id); if(el) el.addEventListener('input',renderBuySum);
   });
   $('sfAmount').addEventListener('input',calcSell);
+  $('sfBuyer').addEventListener('input',renderSfClients);
+  $('clSearch').addEventListener('input',renderClients);
   $('sfRate').addEventListener('input',calcSell);
   $('scManual').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); handleCode($('scManual').value.trim()); $('scManual').value=''; } });
   $('scPhoto').addEventListener('change',function(e){
