@@ -266,6 +266,24 @@ button.tile{display:block;width:100%;text-align:left;font:inherit;color:inherit}
 
 /* ============ СКАНЕР ============ */
 #reader{width:100%;border-radius:14px;overflow:hidden;background:#000;min-height:240px}
+.scanwrap{position:relative}
+#reader #qr-shaded-region{display:none!important}
+/* рамка наведення: підсвічується при зчитуванні */
+.scanbox{position:absolute;left:4%;right:4%;top:30%;height:40%;border:3px solid rgba(255,255,255,.9);border-radius:14px;pointer-events:none;
+  transition:border-color .12s,background .12s,box-shadow .12s}
+.scanbox.ok{border-color:#25c06a;background:rgba(37,192,106,.22);box-shadow:0 0 26px rgba(37,192,106,.75)}
+.scanbox.dup{border-color:#f5a83b;background:rgba(245,168,59,.22);box-shadow:0 0 26px rgba(245,168,59,.7)}
+.scanbox.bad{border-color:#f26a6a;background:rgba(242,106,106,.22);box-shadow:0 0 26px rgba(242,106,106,.7)}
+/* спалах на весь кадр — видно навіть боковим зором */
+.scanhit{position:absolute;inset:0;border-radius:14px;pointer-events:none;opacity:0;transition:opacity .12s}
+.scanhit.ok{background:rgba(37,192,106,.30);opacity:1}
+.scanhit.dup{background:rgba(245,168,59,.28);opacity:1}
+.scanhit.bad{background:rgba(242,106,106,.28);opacity:1}
+.scanmsg{margin-top:10px;text-align:center;font-size:15px;font-weight:800;color:var(--muted);min-height:44px;line-height:1.3}
+.scanmsg .mono{display:block;font-size:17px;letter-spacing:.02em;margin-top:2px;color:var(--ink)}
+.scanmsg.ok{color:#25c06a} .scanmsg.ok .mono{color:#25c06a}
+.scanmsg.dup{color:var(--accent)} .scanmsg.dup .mono{color:var(--accent)}
+.scanmsg.bad{color:var(--bad)} .scanmsg.bad .mono{color:var(--bad)}
 .live{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:800;color:var(--good);margin:11px 0}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--good);animation:pl 1.1s infinite}
 @keyframes pl{0%,100%{opacity:1}50%{opacity:.25}}
@@ -495,7 +513,12 @@ button.tile{display:block;width:100%;text-align:left;font:inherit;color:inherit}
   <section class="screen" id="sc-scan" hidden>
     <div class="h1" id="scTitle">Сканування</div>
     <div class="lead" id="scLead">Наводь камеру на штрих-код.</div>
-    <div id="reader"></div>
+    <div class="scanwrap">
+      <div id="reader"></div>
+      <div class="scanbox" id="scanBox"></div>
+      <div class="scanhit" id="scanHit"></div>
+    </div>
+    <div class="scanmsg" id="scanMsg">Наведи рамку на штрих-код</div>
     <div id="scStatus"></div>
     <div class="card" style="margin-top:14px">
       <div class="field" style="margin:0"><label>Або введи код вручну</label>
@@ -800,7 +823,7 @@ var S={
 };
 var buy={ codes:[], watt:null, mode:'unit' };
 var sell={ basket:[], mode:'usd', filter:'all', clientId:null };
-var scan={ ctx:null, codes:[], cam:null, running:false, loop:null };
+var scan={ ctx:null, codes:[], cam:null, running:false, loop:null, lastCode:null, lastAt:0 };
 var panelFilter='all';
 var pView='panels';          // panels | ops
 var pSel={on:false,ids:[]};  // вибрані панелі (id)
@@ -1586,6 +1609,11 @@ on('scan',function(el){
   $('scLead').textContent = scan.ctx==='pallet'?'Наведи на штрих-код палети.':'Наводь на кожну панель — коди збираються у список.';
   $('scStatus').innerHTML='';
   $('scManual').value='';
+  scan.lastCode=null; scan.lastAt=0;
+  $('scanMsg').className='scanmsg';
+  $('scanMsg').textContent = scan.ctx==='pallet'?'Наведи рамку на код палети':'Наведи рамку на штрих-код';
+  $('scanBox').className='scanbox'; $('scanHit').className='scanhit';
+  beep('unlock');                       // дозвіл на звук отримуємо на дотик
   renderScanCodes();
   show('scan');
   startCamera();
@@ -1602,20 +1630,83 @@ on('scDel',function(el){
   renderScanCodes();
 });
 
+/* ---------- звук і підсвічування рамки ---------- */
+var _ac=null;
+function beep(kind){
+  try{
+    if(!_ac){ var A=window.AudioContext||window.webkitAudioContext; if(!A) return; _ac=new A(); }
+    if(_ac.state==='suspended') _ac.resume();
+    if(kind==='unlock') return;          // лише дозвіл на звук, без сигналу
+    var o=_ac.createOscillator(), g=_ac.createGain(), t=_ac.currentTime;
+    var dur = kind==='ok'?0.13:0.26;
+    o.type='sine';
+    o.frequency.setValueAtTime(kind==='ok'?900:(kind==='dup'?520:300),t);
+    if(kind!=='ok') o.frequency.setValueAtTime(kind==='dup'?420:240,t+0.13);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.22,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(_ac.destination);
+    o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+var _flashT=null;
+function scanFlash(kind,title,code){
+  var box=$('scanBox'), hit=$('scanHit'), msg=$('scanMsg');
+  if(box) box.className='scanbox '+kind;
+  if(hit) hit.className='scanhit '+kind;
+  if(msg){
+    msg.className='scanmsg '+kind;
+    msg.innerHTML=esc(title)+(code?'<span class="mono">'+esc(code)+'</span>':'');
+  }
+  beep(kind);
+  try{ if(navigator.vibrate) navigator.vibrate(kind==='ok'?45:[25,45,25]); }catch(e){}
+  clearTimeout(_flashT);
+  _flashT=setTimeout(function(){
+    if(box) box.className='scanbox';
+    if(hit) hit.className='scanhit';
+    if(msg) msg.className='scanmsg';
+  }, kind==='ok'?900:1400);
+}
+function scanCount(){ return scan.codes.length ? ' · зібрано '+scan.codes.length : ''; }
+
 function handleCode(code){
   code=String(code||'').trim();
   if(!code) return;
+  // той самий код під камерою — не блимаємо щокадру
+  var now=Date.now();
+  if(scan.lastCode===code && now-(scan.lastAt||0)<1600) return;
+  scan.lastCode=code; scan.lastAt=now;
+
   if(scan.ctx==='pallet'){
     $('bPallet').value=code;
-    stopCamera(); show('buy');
-    toast('Код палети: '+code,'ok');
+    scanFlash('ok','Код палети',code);
+    setTimeout(function(){ stopCamera(); show('buy'); toast('Код палети: '+code,'ok'); },420);
     return;
   }
-  if(scan.codes.indexOf(code)>=0) return;
+
+  var known=S.panels.filter(function(p){return p.code===code;})[0];
+
+  if(scan.codes.indexOf(code)>=0){ scanFlash('dup','Вже відсканована'+scanCount(),code); return; }
+
+  if(scan.ctx==='buy'){
+    if(known){ scanFlash('dup','Ця панель вже в обліку',code); return; }
+  } else if(scan.ctx==='sell'){
+    if(!known){
+      // може це код палети — тоді беремо всю палету
+      var pal=stockPanels().filter(function(p){return p.palletCode===code;});
+      if(pal.length){
+        scan.codes.push(code); renderScanCodes();
+        scanFlash('ok','Палета · '+pal.length+' шт',code);
+        return;
+      }
+      scanFlash('bad','Такої панелі нема в обліку',code); return;
+    }
+    if(known.status==='sold'){ scanFlash('bad','Ця панель вже продана',code); return; }
+  }
+
   scan.codes.push(code);
   renderScanCodes();
-  try{ if(navigator.vibrate) navigator.vibrate(40); }catch(e){}
-  $('scStatus').innerHTML='<div class="live"><span class="dot"></span>Зчитано: '+esc(code)+'</div>';
+  scanFlash('ok','Додано'+scanCount(),code);
 }
 
 on('scManualAdd',function(){
@@ -1738,7 +1829,7 @@ function c128Line(line,invert){
   return c128FromRuns(runs.slice().reverse());           // код може бути «догори ногами»
 }
 // проходимо кілька горизонтальних ліній по зображенню, обидві полярності
-function scanImageData(img,lines){
+function scanImageData(img,lines,vertical){
   var w=img.width, h=img.height, d=img.data, rows=lines||24, r, x;
   if(w<60||h<4) return null;
   // йдемо від центру назовні — якщо в кадрі кілька наклейок, беремо ту, на яку наведено
@@ -1751,6 +1842,17 @@ function scanImageData(img,lines){
     for(x=0;x<w;x++){ var p=off+x*4; line[x]=(d[p]*299+d[p+1]*587+d[p+2]*114)/1000; }
     var res=c128Line(line,false) || c128Line(line,true);
     if(res) return res;
+  }
+  if(!vertical || h<60) return null;
+  // те саме по вертикалі — якщо наклейку знято боком
+  var xs=[], cols=Math.max(8,Math.round(rows/2));
+  for(r=0;r<cols;r++) xs.push(Math.min(w-1,Math.round((w-1)*(cols===1?0.5:r/(cols-1)))));
+  xs.sort(function(a2,b2){ return Math.abs(a2-w/2)-Math.abs(b2-w/2); });
+  for(r=0;r<xs.length;r++){
+    var cx=xs[r], col=new Uint8Array(h), yy;
+    for(yy=0;yy<h;yy++){ var q=(yy*w+cx)*4; col[yy]=(d[q]*299+d[q+1]*587+d[q+2]*114)/1000; }
+    var res2=c128Line(col,false) || c128Line(col,true);
+    if(res2) return res2;
   }
   return null;
 }
@@ -1773,7 +1875,7 @@ async function scanPhotoFile(f){
   var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
   var ctx=cv.getContext('2d',{willReadFrequently:true});
   ctx.drawImage(bmp,0,0);
-  try{ return scanImageData(ctx.getImageData(0,0,w,h),60); }catch(e){ return null; }
+  try{ return scanImageData(ctx.getImageData(0,0,w,h),60,true); }catch(e){ return null; }
 }
 
 function startCamera(){
@@ -1782,7 +1884,7 @@ function startCamera(){
   try{
     scan.cam=new Html5Qrcode('reader',{verbose:false});
     scan.running=true;
-    scan.cam.start({facingMode:'environment'},{fps:10,qrbox:{width:260,height:160}},
+    scan.cam.start({facingMode:'environment'},{fps:10,qrbox:function(w,h){ return {width:Math.round(w*0.92),height:Math.round(h*0.40)}; }},
       function(txt){ handleCode(txt); },
       function(){}
     ).then(function(){ startFrameLoop(); }).catch(function(){
@@ -2901,7 +3003,7 @@ function subscribe(){
   try{ if(window.caches&&caches.keys){ caches.keys().then(function(ks){ ks.forEach(function(k){caches.delete(k);}); }).catch(function(){}); } }catch(e){}
 })();
 
-window.__scan={ image:scanImageData, frame:scanVideoFrame };
+window.__scan={ image:scanImageData, frame:scanVideoFrame, code:handleCode };
 })();
 </script>
 </body>
