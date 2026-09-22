@@ -800,7 +800,7 @@ var S={
 };
 var buy={ codes:[], watt:null, mode:'unit' };
 var sell={ basket:[], mode:'usd', filter:'all', clientId:null };
-var scan={ ctx:null, codes:[], cam:null, running:false };
+var scan={ ctx:null, codes:[], cam:null, running:false, loop:null };
 var panelFilter='all';
 var pView='panels';          // panels | ops
 var pSel={on:false,ids:[]};  // вибрані панелі (id)
@@ -1645,6 +1645,137 @@ on('scDone',function(){
   } else { show('buy'); }
 });
 
+/* ----------------------------------------------------------
+   Власний декодер Code128.
+   На панелях наклейки «негативні» — світлий код на чорному,
+   і звичайні бібліотеки такі не читають. Тому кожен рядок
+   пробуємо у двох полярностях: як є і з інверсією.
+   ---------------------------------------------------------- */
+var C128=[[2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],[1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],
+[1,3,2,2,1,2],[2,2,1,2,1,3],[2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],[1,1,3,2,2,2],
+[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,1,3,2],[2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],
+[3,1,1,2,2,2],[3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],[2,1,2,1,2,3],[2,1,2,3,2,1],
+[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],[1,3,1,3,2,1],[1,1,2,3,1,3],[1,3,2,1,1,3],[1,3,2,3,1,1],[2,1,1,3,1,3],
+[2,3,1,1,1,3],[2,3,1,3,1,1],[1,1,2,1,3,3],[1,1,2,3,3,1],[1,3,2,1,3,1],[1,1,3,1,2,3],[1,1,3,3,2,1],[1,3,3,1,2,1],
+[3,1,3,1,2,1],[2,1,1,3,3,1],[2,3,1,1,3,1],[2,1,3,1,1,3],[2,1,3,3,1,1],[2,1,3,1,3,1],[3,1,1,1,2,3],[3,1,1,3,2,1],
+[3,3,1,1,2,1],[3,1,2,1,1,3],[3,1,2,3,1,1],[3,3,2,1,1,1],[3,1,4,1,1,1],[2,2,1,4,1,1],[4,3,1,1,1,1],[1,1,1,2,2,4],
+[1,1,1,4,2,2],[1,2,1,1,2,4],[1,2,1,4,2,1],[1,4,1,1,2,2],[1,4,1,2,2,1],[1,1,2,2,1,4],[1,1,2,4,1,2],[1,2,2,1,1,4],
+[1,2,2,4,1,1],[1,4,2,1,1,2],[1,4,2,2,1,1],[2,4,1,2,1,1],[2,2,1,1,1,4],[4,1,3,1,1,1],[2,4,1,1,1,2],[1,3,4,1,1,1],
+[1,1,1,2,4,2],[1,2,1,1,4,2],[1,2,1,2,4,1],[1,1,4,2,1,2],[1,2,4,1,1,2],[1,2,4,2,1,1],[4,1,1,2,1,2],[4,2,1,1,1,2],
+[4,2,1,2,1,1],[2,1,2,1,4,1],[2,1,4,1,2,1],[4,1,2,1,2,1],[1,1,1,1,4,3],[1,1,1,3,4,1],[1,3,1,1,4,1],[1,1,4,1,1,3],
+[1,1,4,3,1,1],[4,1,1,1,1,3],[4,1,1,3,1,1],[1,1,3,1,4,1],[1,1,4,1,3,1],[3,1,1,1,4,1],[4,1,1,1,3,1],[2,1,1,4,1,2],
+[2,1,1,2,1,4],[2,1,1,2,3,2],[2,3,3,1,1,1,2]];
+
+// наскільки виміряні смуги схожі на еталонний візерунок (менше — краще)
+function patVar(c,pat,maxOne){
+  var total=0,pt=0,i;
+  for(i=0;i<6;i++){ total+=c[i]; pt+=pat[i]; }
+  if(total<pt) return 1e9;
+  var unit=total/pt, max=unit*maxOne, v=0;
+  for(i=0;i<6;i++){
+    var d=Math.abs(c[i]-pat[i]*unit);
+    if(d>max) return 1e9;
+    v+=d;
+  }
+  return v/total;
+}
+function c128Text(vals){
+  var set=vals[0]===103?'A':(vals[0]===104?'B':'C'), out='', shift=null;
+  for(var i=1;i<vals.length-2;i++){
+    var v=vals[i], cur=shift||set; shift=null;
+    if(cur==='C'){
+      if(v<100){ out+=(v<10?'0':'')+v; }
+      else if(v===100) set='B'; else if(v===101) set='A';
+      else if(v!==102&&v!==103) return null;
+    } else {
+      if(v<96){ out+= cur==='A' ? String.fromCharCode(v<64?v+32:v-64) : String.fromCharCode(v+32); }
+      else if(v===98) shift = (cur==='A')?'B':'A';
+      else if(v===99) set='C';
+      else if(v===100) set=(cur==='A')?'B':set;
+      else if(v===101) set=(cur==='B')?'A':set;
+      else if(v!==96&&v!==97&&v!==102) return null;
+    }
+  }
+  return out;
+}
+function c128FromRuns(runs){
+  for(var i=0;i+6<runs.length;i++){
+    if(!runs[i].bar) continue;
+    var c=[runs[i].len,runs[i+1].len,runs[i+2].len,runs[i+3].len,runs[i+4].len,runs[i+5].len];
+    var startVal=-1, bv=0.28, k, v;
+    for(k=103;k<=105;k++){ v=patVar(c,C128[k],0.7); if(v<bv){ bv=v; startVal=k; } }
+    if(startVal<0) continue;
+    var vals=[startVal], pos=i+6, guard=0;
+    while(pos+5<runs.length && guard++<120){
+      var cc=[runs[pos].len,runs[pos+1].len,runs[pos+2].len,runs[pos+3].len,runs[pos+4].len,runs[pos+5].len];
+      var best=-1, bb=0.32;
+      for(k=0;k<C128.length;k++){ v=patVar(cc,C128[k],0.7); if(v<bb){ bb=v; best=k; } }
+      if(best<0) break;
+      vals.push(best); pos+=6;
+      if(best===106) break;
+    }
+    if(vals.length<5 || vals[vals.length-1]!==106) continue;
+    var sum=vals[0];
+    for(k=1;k<vals.length-2;k++) sum+=k*vals[k];
+    if(sum%103!==vals[vals.length-2]) continue;          // контрольна сума не зійшлась
+    var txt=c128Text(vals);
+    if(txt&&txt.length>=4) return txt;
+  }
+  return null;
+}
+function c128Line(line,invert){
+  var n=line.length, mn=255, mx=0, i;
+  for(i=0;i<n;i++){ var q=line[i]; if(q<mn)mn=q; if(q>mx)mx=q; }
+  if(mx-mn<38) return null;                              // рівний фон — сканувати нічого
+  var th=(mn+mx)/2, runs=[], bar=invert?(line[0]>th):(line[0]<th), start=0;
+  for(i=1;i<=n;i++){
+    var b = i<n ? (invert?(line[i]>th):(line[i]<th)) : !bar;
+    if(b!==bar){ runs.push({len:i-start,bar:bar}); bar=b; start=i; }
+  }
+  if(runs.length<20) return null;
+  var res=c128FromRuns(runs);
+  if(res) return res;
+  return c128FromRuns(runs.slice().reverse());           // код може бути «догори ногами»
+}
+// проходимо кілька горизонтальних ліній по зображенню, обидві полярності
+function scanImageData(img,lines){
+  var w=img.width, h=img.height, d=img.data, rows=lines||24, r, x;
+  if(w<60||h<4) return null;
+  // йдемо від центру назовні — якщо в кадрі кілька наклейок, беремо ту, на яку наведено
+  var ys=[];
+  for(r=0;r<rows;r++) ys.push(Math.min(h-1,Math.round((h-1)*(rows===1?0.5:r/(rows-1)))));
+  ys.sort(function(a2,b2){ return Math.abs(a2-h/2)-Math.abs(b2-h/2); });
+  for(r=0;r<ys.length;r++){
+    var y=ys[r];
+    var line=new Uint8Array(w), off=y*w*4;
+    for(x=0;x<w;x++){ var p=off+x*4; line[x]=(d[p]*299+d[p+1]*587+d[p+2]*114)/1000; }
+    var res=c128Line(line,false) || c128Line(line,true);
+    if(res) return res;
+  }
+  return null;
+}
+// кадр із камери → смуга по центру → розпізнавання
+var _fcv=null;
+function scanVideoFrame(){
+  var v=qs('#reader video');
+  if(!v||!v.videoWidth||v.readyState<2) return null;
+  if(!_fcv) _fcv=document.createElement('canvas');
+  var w=v.videoWidth, h=v.videoHeight;
+  _fcv.width=w; _fcv.height=h;
+  var ctx=_fcv.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(v,0,0,w,h);
+  var y0=Math.floor(h*0.30), bh=Math.max(8,Math.floor(h*0.40));
+  try{ return scanImageData(ctx.getImageData(0,y0,w,bh),22); }catch(e){ return null; }
+}
+async function scanPhotoFile(f){
+  var bmp=await createImageBitmap(f);
+  var w=bmp.width, h=bmp.height;
+  var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  var ctx=cv.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(bmp,0,0);
+  try{ return scanImageData(ctx.getImageData(0,0,w,h),60); }catch(e){ return null; }
+}
+
 function startCamera(){
   if(typeof Html5Qrcode==='undefined'){ $('scStatus').innerHTML='<div class="hint">Сканер не завантажився — введи код вручну.</div>'; return; }
   if(scan.running) return;
@@ -1654,7 +1785,7 @@ function startCamera(){
     scan.cam.start({facingMode:'environment'},{fps:10,qrbox:{width:260,height:160}},
       function(txt){ handleCode(txt); },
       function(){}
-    ).catch(function(){
+    ).then(function(){ startFrameLoop(); }).catch(function(){
       scan.running=false;
       $('scStatus').innerHTML='<div class="hint">Камера недоступна — введи код вручну або зніми фото.</div>';
     });
@@ -1663,7 +1794,17 @@ function startCamera(){
     $('scStatus').innerHTML='<div class="hint">Камера недоступна — введи код вручну.</div>';
   }
 }
+function startFrameLoop(){
+  stopFrameLoop();
+  scan.loop=setInterval(function(){
+    if(!scan.running) return;
+    var code=scanVideoFrame();
+    if(code) handleCode(code);
+  },220);
+}
+function stopFrameLoop(){ if(scan.loop){ clearInterval(scan.loop); scan.loop=null; } }
 function stopCamera(){
+  stopFrameLoop();
   if(scan.cam&&scan.running){
     try{ scan.cam.stop().then(function(){ try{scan.cam.clear();}catch(e){} }).catch(function(){}); }catch(e){}
   }
@@ -2728,9 +2869,13 @@ function subscribe(){
   $('scPhoto').addEventListener('change',function(e){
     var f=e.target.files&&e.target.files[0]; if(!f) return;
     if(typeof Html5Qrcode==='undefined'){ toast('Сканер недоступний','warn'); return; }
-    var tmp=new Html5Qrcode('reader',{verbose:false});
-    tmp.scanFile(f,true).then(function(txt){ handleCode(txt); toast('Розпізнано ✓','ok'); })
-      .catch(function(){ toast('Не вдалось розпізнати — введи вручну','warn'); });
+    toast('Розпізнаю…');
+    scanPhotoFile(f).then(function(code){
+      if(code){ handleCode(code); toast('Розпізнано ✓','ok'); return; }
+      var tmp=new Html5Qrcode('reader',{verbose:false});
+      return tmp.scanFile(f,true).then(function(txt){ handleCode(txt); toast('Розпізнано ✓','ok'); })
+        .catch(function(){ toast('Не вдалось розпізнати — введи вручну','warn'); });
+    }).catch(function(){ toast('Не вдалось розпізнати — введи вручну','warn'); });
     e.target.value='';
   });
 
@@ -2756,6 +2901,7 @@ function subscribe(){
   try{ if(window.caches&&caches.keys){ caches.keys().then(function(ks){ ks.forEach(function(k){caches.delete(k);}); }).catch(function(){}); } }catch(e){}
 })();
 
+window.__scan={ image:scanImageData, frame:scanVideoFrame };
 })();
 </script>
 </body>
